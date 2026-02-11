@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function PartnerRegisterPage() {
+  const router = useRouter();
+
   const servicesData = {
     Home: ["Electrician", "Plumber", "Carpenter", "Painter"],
     Personal: ["Barber", "Driver"],
@@ -58,7 +61,7 @@ export default function PartnerRegisterPage() {
     }
   };
 
-  // Handle Multi Select Services
+  // Toggle Services
   const toggleService = (service) => {
     const updated = formData.services.includes(service)
       ? formData.services.filter((s) => s !== service)
@@ -72,7 +75,7 @@ export default function PartnerRegisterPage() {
     let newErrors = {};
 
     if (!formData.name) newErrors.name = "Name is required";
-    if (formData.phone.length !== 10)
+    if (!/^[6-9]\d{9}$/.test(formData.phone))
       newErrors.phone = "Valid 10-digit mobile required";
     if (formData.aadhaar.length !== 12)
       newErrors.aadhaar = "Valid 12-digit Aadhaar required";
@@ -89,14 +92,28 @@ export default function PartnerRegisterPage() {
     e.preventDefault();
     if (!validate()) return;
 
-    console.log("Partner Registered:", formData);
-    alert("Partner Registration Submitted Successfully!");
+    const partnerId = "PR" + Math.floor(100000 + Math.random() * 900000);
+
+    const query = new URLSearchParams({
+      partnerId,
+      name: formData.name,
+      phone: formData.phone,
+      email: formData.email,
+      address: formData.address,
+      city: formData.city,
+      state: formData.state,
+      pincode: formData.pincode,
+      aadhaar: formData.aadhaar,
+      language: formData.language,
+      services: formData.services.join(", "),
+    }).toString();
+
+    router.push(`/partner/register/success?${query}`);
   };
 
   return (
     <div className="min-h-screen bg-blue-50 py-12 px-4">
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8">
-
         <h1 className="text-3xl font-bold text-blue-700 text-center mb-8">
           Become a Partner
         </h1>
@@ -108,12 +125,23 @@ export default function PartnerRegisterPage() {
             <label className="cursor-pointer">
               <div className="w-28 h-28 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden border-2 border-blue-200">
                 {preview ? (
-                  <img src={preview} alt="Preview" className="w-full h-full object-cover" />
+                  <img
+                    src={preview}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
-                  <span className="text-blue-600 text-sm">Upload Photo</span>
+                  <span className="text-blue-600 text-sm">
+                    Upload Photo
+                  </span>
                 )}
               </div>
-              <input type="file" accept="image/*" hidden onChange={handlePhoto} />
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={handlePhoto}
+              />
             </label>
           </div>
 
@@ -121,7 +149,7 @@ export default function PartnerRegisterPage() {
           <div className="grid md:grid-cols-2 gap-4">
             <Input label="Full Name *" name="name" value={formData.name} onChange={handleChange} error={errors.name} />
             <Input label="Phone Number *" name="phone" value={formData.phone} onChange={handleChange} error={errors.phone} />
-            <Input label="Email (Optional)" name="email" value={formData.email} onChange={handleChange} />
+            <Input label="Email" name="email" value={formData.email} onChange={handleChange} />
             <Input label="Aadhaar Number *" name="aadhaar" value={formData.aadhaar} onChange={handleChange} error={errors.aadhaar} />
           </div>
 
@@ -144,7 +172,9 @@ export default function PartnerRegisterPage() {
             >
               <option value="">Select Language</option>
               {languages.map((lang) => (
-                <option key={lang}>{lang}</option>
+                <option key={lang} value={lang}>
+                  {lang}
+                </option>
               ))}
             </select>
           </div>
@@ -180,7 +210,9 @@ export default function PartnerRegisterPage() {
             ))}
 
             {errors.services && (
-              <p className="text-red-500 text-sm mt-2">{errors.services}</p>
+              <p className="text-red-500 text-sm mt-2">
+                {errors.services}
+              </p>
             )}
           </div>
 
