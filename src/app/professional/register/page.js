@@ -166,7 +166,7 @@ const handleSubmit = async (e) => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Photo Upload (optional) */}
-          <div className="flex flex-col items-center">
+          {/* <div className="flex flex-col items-center">
             <label className="cursor-pointer">
               <div className="w-28 h-28 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden border-2 border-blue-200">
                 {preview ? (
@@ -181,7 +181,7 @@ const handleSubmit = async (e) => {
               </div>
               <input type="file" accept="image/*" hidden onChange={handlePhoto} />
             </label>
-          </div>
+          </div> */}
 
           {/* Basic Details */}
           <div className="grid md:grid-cols-2 gap-4">
