@@ -74,40 +74,41 @@ export default function BookingForm() {
       [name]: value,
     }));
   };
+  
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  // Phone validation
+  if (!/^[6-9]\d{9}$/.test(formData.phone)) {
+    alert("Enter valid 10-digit Indian mobile number");
+    return;
+  }
 
-    if (!/^[6-9]\d{9}$/.test(formData.phone)) {
-      alert("Enter valid 10-digit Indian mobile number");
+  try {
+    const res = await fetch("/api/book-service", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(formData),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.message || "Something went wrong");
       return;
     }
 
-    if (formData.service === "Other" && !formData.customService) {
-      alert("Please enter your custom service");
-      return;
-    }
+    // Redirect using real bookingId from DB
+    router.push(`/book-service/success?bookingId=${data.bookingId}`);
 
-    const finalService =
-      formData.service === "Other"
-        ? formData.customService
-        : formData.service;
+  } catch (error) {
+    console.error(error);
+    alert("Something went wrong");
+  }
+};
 
-    const bookingId =
-      "KS" + Math.floor(100000 + Math.random() * 900000);
-
-    const query = new URLSearchParams({
-      name: formData.name,
-      phone: formData.phone,
-      email: formData.email, // optional now
-      service: finalService,
-      pincode: formData.pincode,
-      language: formData.language,
-      bookingId,
-    }).toString();
-
-    router.push(`/book-service/success?${query}`);
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 via-white to-indigo-100 flex items-center justify-center px-4 py-12">
