@@ -43,11 +43,11 @@ export default function SuccessContent() {
 
           <Detail label="Phone" value={phone} />
           <Detail label="Email" value={email || "—"} />
-          <Detail label="Address" value={address} />
+          {/* <Detail label="Address" value={address} /> */}
           <Detail label="City" value={city} />
           <Detail label="State" value={state} />
           <Detail label="Pincode" value={pincode} />
-          <Detail label="Aadhaar" value={aadhaar} />
+          {/* <Detail label="Aadhaar" value={aadhaar} /> */}
           <Detail label="Language" value={language} />
           <Detail label="Selected Services" value={services} />
 

@@ -24,16 +24,53 @@ export default function ProfessionalRegisterPage() {
     "Punjabi",
   ];
 
+  const indianStatesUT = [
+    "Andhra Pradesh",
+    "Arunachal Pradesh",
+    "Assam",
+    "Bihar",
+    "Chhattisgarh",
+    "Goa",
+    "Gujarat",
+    "Haryana",
+    "Himachal Pradesh",
+    "Jharkhand",
+    "Karnataka",
+    "Kerala",
+    "Madhya Pradesh",
+    "Maharashtra",
+    "Manipur",
+    "Meghalaya",
+    "Mizoram",
+    "Nagaland",
+    "Odisha",
+    "Punjab",
+    "Rajasthan",
+    "Sikkim",
+    "Tamil Nadu",
+    "Telangana",
+    "Tripura",
+    "Uttar Pradesh",
+    "Uttarakhand",
+    "West Bengal",
+    "Andaman and Nicobar Islands",
+    "Chandigarh",
+    "Dadra and Nagar Haveli and Daman and Diu",
+    "Delhi",
+    "Jammu and Kashmir",
+    "Ladakh",
+    "Lakshadweep",
+    "Puducherry",
+  ];
+
   const [formData, setFormData] = useState({
     photo: null,
     name: "",
     phone: "",
     email: "",
-    address: "",
     city: "",
     state: "",
     pincode: "",
-    aadhaar: "",
     language: "",
     services: [],
   });
@@ -46,13 +83,12 @@ export default function ProfessionalRegisterPage() {
     const { name, value } = e.target;
 
     if (name === "phone" && !/^\d{0,10}$/.test(value)) return;
-    if (name === "aadhaar" && !/^\d{0,12}$/.test(value)) return;
     if (name === "pincode" && !/^\d{0,6}$/.test(value)) return;
 
     setFormData({ ...formData, [name]: value });
   };
 
-  // Handle Photo Upload
+  // Handle Photo Upload (optional)
   const handlePhoto = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -77,10 +113,11 @@ export default function ProfessionalRegisterPage() {
     if (!formData.name) newErrors.name = "Name is required";
     if (!/^[6-9]\d{9}$/.test(formData.phone))
       newErrors.phone = "Valid 10-digit mobile required";
-    if (formData.aadhaar.length !== 12)
-      newErrors.aadhaar = "Valid 12-digit Aadhaar required";
+    if (!formData.city) newErrors.city = "City is required";
+    if (!formData.state) newErrors.state = "State is required";
     if (formData.pincode.length !== 6)
       newErrors.pincode = "Valid 6-digit Pincode required";
+    if (!formData.language) newErrors.language = "Language is required";
     if (formData.services.length === 0)
       newErrors.services = "Select at least one service";
 
@@ -99,11 +136,9 @@ export default function ProfessionalRegisterPage() {
       name: formData.name,
       phone: formData.phone,
       email: formData.email,
-      address: formData.address,
       city: formData.city,
       state: formData.state,
       pincode: formData.pincode,
-      aadhaar: formData.aadhaar,
       language: formData.language,
       services: formData.services.join(", "),
     }).toString();
@@ -119,8 +154,7 @@ export default function ProfessionalRegisterPage() {
         </h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-
-          {/* Photo Upload */}
+          {/* Photo Upload (optional) */}
           <div className="flex flex-col items-center">
             <label className="cursor-pointer">
               <div className="w-28 h-28 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden border-2 border-blue-200">
@@ -131,17 +165,10 @@ export default function ProfessionalRegisterPage() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <span className="text-blue-600 text-sm">
-                    Upload Photo
-                  </span>
+                  <span className="text-blue-600 text-sm">Upload Photo</span>
                 )}
               </div>
-              <input
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={handlePhoto}
-              />
+              <input type="file" accept="image/*" hidden onChange={handlePhoto} />
             </label>
           </div>
 
@@ -149,26 +176,45 @@ export default function ProfessionalRegisterPage() {
           <div className="grid md:grid-cols-2 gap-4">
             <Input label="Full Name *" name="name" value={formData.name} onChange={handleChange} error={errors.name} />
             <Input label="Phone Number *" name="phone" value={formData.phone} onChange={handleChange} error={errors.phone} />
-            <Input label="Email" name="email" value={formData.email} onChange={handleChange} />
-            <Input label="Aadhaar Number *" name="aadhaar" value={formData.aadhaar} onChange={handleChange} error={errors.aadhaar} />
+            <Input label="Email (Optional)" name="email" value={formData.email} onChange={handleChange} />
+            <Input label="City/Town *" name="city" value={formData.city} onChange={handleChange} error={errors.city} />
           </div>
 
-          <Input label="Address *" name="address" value={formData.address} onChange={handleChange} />
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* State Dropdown */}
+            <div>
+              <label className="block font-medium mb-2">State / UT *</label>
+              <select
+                name="state"
+                value={formData.state}
+                onChange={handleChange}
+                className={`w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 ${
+                  errors.state ? "border-red-500" : "border-gray-300"
+                }`}
+              >
+                <option value="">Select State / UT</option>
+                {indianStatesUT.map((state) => (
+                  <option key={state} value={state}>
+                    {state}
+                  </option>
+                ))}
+              </select>
+              {errors.state && <p className="text-red-500 text-sm mt-1">{errors.state}</p>}
+            </div>
 
-          <div className="grid md:grid-cols-3 gap-4">
-            <Input label="City *" name="city" value={formData.city} onChange={handleChange} />
-            <Input label="State *" name="state" value={formData.state} onChange={handleChange} />
             <Input label="Pincode *" name="pincode" value={formData.pincode} onChange={handleChange} error={errors.pincode} />
           </div>
 
           {/* Language */}
           <div>
-            <label className="block font-medium mb-2">Preferred Language</label>
+            <label className="block font-medium mb-2">Preferred Language *</label>
             <select
               name="language"
               value={formData.language}
               onChange={handleChange}
-              className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500"
+              className={`w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 ${
+                errors.language ? "border-red-500" : "border-gray-300"
+              }`}
             >
               <option value="">Select Language</option>
               {languages.map((lang) => (
@@ -177,19 +223,16 @@ export default function ProfessionalRegisterPage() {
                 </option>
               ))}
             </select>
+            {errors.language && <p className="text-red-500 text-sm mt-1">{errors.language}</p>}
           </div>
 
           {/* Services */}
           <div>
-            <label className="block font-medium mb-3">
-              Select Services *
-            </label>
+            <label className="block font-medium mb-3">Select Services *</label>
 
             {Object.entries(servicesData).map(([category, services]) => (
               <div key={category} className="mb-4">
-                <h3 className="text-blue-700 font-semibold mb-2">
-                  {category}
-                </h3>
+                <h3 className="text-blue-700 font-semibold mb-2">{category}</h3>
                 <div className="flex flex-wrap gap-3">
                   {services.map((service) => (
                     <button
@@ -210,9 +253,7 @@ export default function ProfessionalRegisterPage() {
             ))}
 
             {errors.services && (
-              <p className="text-red-500 text-sm mt-2">
-                {errors.services}
-              </p>
+              <p className="text-red-500 text-sm mt-2">{errors.services}</p>
             )}
           </div>
 

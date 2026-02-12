@@ -99,7 +99,7 @@ export default function BookingForm() {
     const query = new URLSearchParams({
       name: formData.name,
       phone: formData.phone,
-      email: formData.email,
+      email: formData.email, // optional now
       service: finalService,
       pincode: formData.pincode,
       language: formData.language,
@@ -109,137 +109,131 @@ export default function BookingForm() {
     router.push(`/book-service/success?${query}`);
   };
 
-return (
-  <div className="min-h-screen bg-gradient-to-br from-blue-100 via-white to-indigo-100 flex items-center justify-center px-4 py-12">
-    
-    <div className="w-full max-w-3xl bg-white/80 backdrop-blur-lg shadow-2xl rounded-3xl p-10 border border-white/40">
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-100 via-white to-indigo-100 flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-3xl bg-white/80 backdrop-blur-lg shadow-2xl rounded-3xl p-10 border border-white/40">
+        {/* Header */}
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-extrabold text-gray-800">
+            Book a Service
+          </h1>
+          <p className="text-gray-500 mt-3">
+            Fast • Reliable • Verified Professionals Near You
+          </p>
+        </div>
 
-      {/* Header */}
-      <div className="text-center mb-10">
-        <h1 className="text-4xl font-extrabold text-gray-800">
-          Book a Service
-        </h1>
-        <p className="text-gray-500 mt-3">
-          Fast • Reliable • Verified Professionals Near You
-        </p>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Service */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-600 mb-2">
+              Select Service
+            </label>
+            <select
+              name="service"
+              value={formData.service}
+              onChange={handleChange}
+              required
+              className="w-full border border-gray-200 rounded-xl p-3 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+            >
+              <option value="">Choose Service</option>
+              {serviceList.map((service) => (
+                <option key={service} value={service}>
+                  {service}
+                </option>
+              ))}
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          {showCustomService && (
+            <input
+              type="text"
+              name="customService"
+              placeholder="Enter your service name"
+              value={formData.customService}
+              onChange={handleChange}
+              required
+              className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 transition"
+            />
+          )}
+
+          {/* Name + Email */}
+          <div className="grid md:grid-cols-2 gap-5">
+            <input
+              type="text"
+              name="name"
+              placeholder="Full Name"
+              required
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 transition"
+            />
+
+            <input
+              type="email"
+              name="email"
+              placeholder="Email Address (Optional)"
+              value={formData.email}
+              onChange={handleChange}
+              className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 transition"
+            />
+          </div>
+
+          {/* Phone + Pincode */}
+          <div className="grid md:grid-cols-2 gap-5">
+            <input
+              type="tel"
+              name="phone"
+              placeholder="10-digit Mobile Number"
+              maxLength={10}
+              required
+              value={formData.phone}
+              onChange={handleChange}
+              className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 transition"
+            />
+
+            <input
+              type="text"
+              name="pincode"
+              placeholder="Pincode"
+              maxLength={6}
+              required
+              value={formData.pincode}
+              onChange={handleChange}
+              className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 transition"
+            />
+          </div>
+
+          {/* Language */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-600 mb-2">
+              Preferred Language
+            </label>
+            <select
+              name="language"
+              required
+              value={formData.language}
+              onChange={handleChange}
+              className="w-full border border-gray-200 rounded-xl p-3 bg-white focus:ring-2 focus:ring-blue-500 transition"
+            >
+              <option value="">Select Language</option>
+              {languages.map((lang) => (
+                <option key={lang} value={lang}>
+                  {lang}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Button */}
+          <button
+            type="submit"
+            className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-lg shadow-lg hover:scale-[1.02] hover:shadow-xl transition-all duration-300"
+          >
+            Submit Booking Request
+          </button>
+        </form>
       </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-
-        {/* Service */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-600 mb-2">
-            Select Service
-          </label>
-          <select
-            name="service"
-            value={formData.service}
-            onChange={handleChange}
-            required
-            className="w-full border border-gray-200 rounded-xl p-3 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-          >
-            <option value="">Choose Service</option>
-            {serviceList.map((service) => (
-              <option key={service} value={service}>
-                {service}
-              </option>
-            ))}
-            <option value="Other">Other</option>
-          </select>
-        </div>
-
-        {showCustomService && (
-          <input
-            type="text"
-            name="customService"
-            placeholder="Enter your service name"
-            value={formData.customService}
-            onChange={handleChange}
-            required
-            className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 transition"
-          />
-        )}
-
-        {/* Name + Email */}
-        <div className="grid md:grid-cols-2 gap-5">
-          <input
-            type="text"
-            name="name"
-            placeholder="Full Name"
-            required
-            value={formData.name}
-            onChange={handleChange}
-            className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 transition"
-          />
-
-          <input
-            type="email"
-            name="email"
-            placeholder="Email Address"
-            required
-            value={formData.email}
-            onChange={handleChange}
-            className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 transition"
-          />
-        </div>
-
-        {/* Phone + Pincode */}
-        <div className="grid md:grid-cols-2 gap-5">
-          <input
-            type="tel"
-            name="phone"
-            placeholder="10-digit Mobile Number"
-            maxLength={10}
-            required
-            value={formData.phone}
-            onChange={handleChange}
-            className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 transition"
-          />
-
-          <input
-            type="text"
-            name="pincode"
-            placeholder="Pincode"
-            maxLength={6}
-            required
-            value={formData.pincode}
-            onChange={handleChange}
-            className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 transition"
-          />
-        </div>
-
-        {/* Language */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-600 mb-2">
-            Preferred Language
-          </label>
-          <select
-            name="language"
-            required
-            value={formData.language}
-            onChange={handleChange}
-            className="w-full border border-gray-200 rounded-xl p-3 bg-white focus:ring-2 focus:ring-blue-500 transition"
-          >
-            <option value="">Select Language</option>
-            {languages.map((lang) => (
-              <option key={lang} value={lang}>
-                {lang}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Button */}
-        <button
-          type="submit"
-          className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-lg shadow-lg hover:scale-[1.02] hover:shadow-xl transition-all duration-300"
-        >
-          Submit Booking Request
-        </button>
-
-      </form>
     </div>
-  </div>
-);
-
+  );
 }
