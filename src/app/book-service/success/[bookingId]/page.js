@@ -1,25 +1,22 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import pool from "@/lib/db";
 import Link from "next/link";
 
-export default function SuccessPage() {
-  const searchParams = useSearchParams();
-  const bookingId = searchParams.get("bookingId");
+export default async function SuccessPage({ params }) {
+  const { bookingId } = await params;
 
-  const [booking, setBooking] = useState(null);
+  const [rows] = await pool.execute(
+    "SELECT * FROM bookings WHERE bookingId = ?",
+    [bookingId]
+  );
 
-  useEffect(() => {
-    if (!bookingId) return;
-
-    fetch(`/api/booking/${bookingId}`)
-      .then((res) => res.json())
-      .then((data) => setBooking(data));
-  }, [bookingId]);
+  const booking = rows[0];
 
   if (!booking) {
-    return <div className="p-10 text-center">Loading...</div>;
+    return (
+      <div className="p-10 text-center">
+        Booking not found
+      </div>
+    );
   }
 
   return (

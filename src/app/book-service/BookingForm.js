@@ -74,7 +74,7 @@ export default function BookingForm() {
       [name]: value,
     }));
   };
-  
+
 const handleSubmit = async (e) => {
   e.preventDefault();
 
@@ -101,7 +101,8 @@ const handleSubmit = async (e) => {
     }
 
     // Redirect using real bookingId from DB
-    router.push(`/book-service/success?bookingId=${data.bookingId}`);
+    router.push(`/book-service/success/${data.bookingId}`);
+
 
   } catch (error) {
     console.error(error);
