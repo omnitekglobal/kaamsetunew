@@ -22,10 +22,10 @@ export default function HeroSection() {
             </Link>
 
             <Link
-              href="/partner/register"
+              href="/professional/register"
               className="border border-blue-600 text-blue-600 px-6 py-3 rounded-lg text-lg font-medium hover:bg-blue-50 transition text-center"
             >
-              Become a Partner
+              Become a Professional
             </Link>
           </div>
         </div>

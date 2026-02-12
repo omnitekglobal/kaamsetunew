@@ -24,8 +24,8 @@ export default function Navbar() {
               Services
             </Link>
 
-            <Link href="/partner/register" className="hover:text-blue-600 transition">
-              Become Partner
+            <Link href="/professional/register" className="hover:text-blue-600 transition">
+              Become Professional
             </Link>
 
             <Link
@@ -53,8 +53,8 @@ export default function Navbar() {
             <Link href="/services" onClick={() => setOpen(false)}>
               Services
             </Link>
-            <Link href="/partner/register" onClick={() => setOpen(false)}>
-              Become Partner
+            <Link href="/professional/register" onClick={() => setOpen(false)}>
+              Become Professional
             </Link>
             <Link
               href="/book-service"

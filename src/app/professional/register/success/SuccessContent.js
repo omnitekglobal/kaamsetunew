@@ -6,7 +6,7 @@ import Link from "next/link";
 export default function SuccessContent() {
   const searchParams = useSearchParams();
 
-  const partnerId = searchParams.get("partnerId");
+  const professionalId = searchParams.get("professionalId");
   const name = searchParams.get("name");
   const phone = searchParams.get("phone");
   const email = searchParams.get("email");
@@ -27,7 +27,7 @@ export default function SuccessContent() {
         </div>
 
         <h1 className="mt-6 text-3xl font-bold text-center text-purple-700">
-          Partner Registration Successful!
+          Professional Registration Successful!
         </h1>
 
         <p className="mt-3 text-center text-gray-600">
@@ -35,8 +35,8 @@ export default function SuccessContent() {
         </p>
 
         <div className="mt-4 text-center">
-          <span className="text-sm text-gray-500">Partner ID</span>
-          <p className="text-lg font-bold text-purple-700">{partnerId}</p>
+          <span className="text-sm text-gray-500">Professional ID</span>
+          <p className="text-lg font-bold text-purple-700">{professionalId}</p>
         </div>
 
         <div className="mt-8 bg-purple-50 border border-purple-100 rounded-xl p-6 space-y-3 text-sm">

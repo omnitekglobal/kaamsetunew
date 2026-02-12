@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function PartnerRegisterPage() {
+export default function ProfessionalRegisterPage() {
   const router = useRouter();
 
   const servicesData = {
@@ -92,10 +92,10 @@ export default function PartnerRegisterPage() {
     e.preventDefault();
     if (!validate()) return;
 
-    const partnerId = "PR" + Math.floor(100000 + Math.random() * 900000);
+    const professionalId = "PR" + Math.floor(100000 + Math.random() * 900000);
 
     const query = new URLSearchParams({
-      partnerId,
+      professionalId,
       name: formData.name,
       phone: formData.phone,
       email: formData.email,
@@ -108,14 +108,14 @@ export default function PartnerRegisterPage() {
       services: formData.services.join(", "),
     }).toString();
 
-    router.push(`/partner/register/success?${query}`);
+    router.push(`/professional/register/success?${query}`);
   };
 
   return (
     <div className="min-h-screen bg-blue-50 py-12 px-4">
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8">
         <h1 className="text-3xl font-bold text-blue-700 text-center mb-8">
-          Become a Partner
+          Become a Professional
         </h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -220,7 +220,7 @@ export default function PartnerRegisterPage() {
             type="submit"
             className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
           >
-            Register as Partner
+            Register as Professional
           </button>
         </form>
       </div>
