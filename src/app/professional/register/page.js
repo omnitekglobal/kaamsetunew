@@ -125,26 +125,37 @@ export default function ProfessionalRegisterPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!validate()) return;
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!validate()) return;
 
-    const professionalId = "PR" + Math.floor(100000 + Math.random() * 900000);
+  try {
+    const res = await fetch("/api/professional/register", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...formData,
+        services: formData.services.join(", "),
+      }),
+    });
 
-    const query = new URLSearchParams({
-      professionalId,
-      name: formData.name,
-      phone: formData.phone,
-      email: formData.email,
-      city: formData.city,
-      state: formData.state,
-      pincode: formData.pincode,
-      language: formData.language,
-      services: formData.services.join(", "),
-    }).toString();
+    const data = await res.json();
 
-    router.push(`/professional/register/success?${query}`);
-  };
+    if (!res.ok) {
+      alert(data.message || "Something went wrong");
+      return;
+    }
+
+    router.push(`/professional/register/success/${data.professionalId}`);
+
+  } catch (err) {
+    console.error(err);
+    alert("Server error");
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-blue-50 py-12 px-4">
