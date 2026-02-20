@@ -1,0 +1,12 @@
+{
+  "name": "kaamsetu/api",
+  "description": "KaamSetu Core PHP REST API",
+  "type": "project",
+  "require": {
+    "php": ">=8.0",
+    "firebase/php-jwt": "^6.10"
+  },
+  "autoload": {
+    "psr-4": {}
+  }
+}

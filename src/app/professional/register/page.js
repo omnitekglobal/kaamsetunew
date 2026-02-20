@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { registerProfessional } from "@/lib/api";
 
 export default function ProfessionalRegisterPage() {
   const router = useRouter();
@@ -130,29 +131,19 @@ const handleSubmit = async (e) => {
   if (!validate()) return;
 
   try {
-    const res = await fetch("/api/professional/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ...formData,
-        services: formData.services.join(", "),
-      }),
+    const data = await registerProfessional({
+      name: formData.name,
+      phone: formData.phone,
+      email: formData.email || undefined,
+      city: formData.city,
+      state: formData.state,
+      pincode: formData.pincode,
+      language: formData.language,
+      services: formData.services.join(", "),
     });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      alert(data.message || "Something went wrong");
-      return;
-    }
-
     router.push(`/professional/register/success/${data.professionalId}`);
-
   } catch (err) {
-    console.error(err);
-    alert("Server error");
+    alert(err.message || "Server error");
   }
 };
 

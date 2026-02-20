@@ -1,5 +1,21 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
+## Linking to PHP API
+
+The frontend uses the **PHP API** (`php-api/`) for categories, services, bookings, and professional registration.
+
+1. **Run the PHP API** (from repo root):
+   ```bash
+   cd php-api && php -S localhost:8080 -t .
+   ```
+2. **Create `.env.local`** in the Next.js root (copy from `.env.example`):
+   ```
+   NEXT_PUBLIC_API_URL=http://localhost:8080
+   ```
+3. Run the Next.js app: `npm run dev` and open http://localhost:3000.
+
+The app fetches categories and services from the API, submits bookings and professional registrations to the API, and shows success pages using API data. If the API is unavailable, the services page falls back to static data.
+
 ## Getting Started
 
 First, run the development server:

@@ -35,8 +35,8 @@ export async function POST(req) {
 
     await pool.execute(
       `INSERT INTO professionals
-      (professionalId, name, phone, email, city, state, pincode, language, services)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (professionalId, name, phone, email, city, state, pincode, language, services, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       [
         professionalId,
         name,
@@ -61,5 +61,16 @@ export async function POST(req) {
       { message: "Server error" },
       { status: 500 }
     );
+  }
+}
+
+
+export async function GET(req) {
+  try {
+    const professionals = await pool.execute("SELECT * FROM professionals");
+    return NextResponse.json(professionals[0]);
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ message: "Server error"+error.message }, { status: 500 });
   }
 }
