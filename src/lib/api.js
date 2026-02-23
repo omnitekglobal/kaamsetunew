@@ -118,7 +118,7 @@ export async function getProfessional(professionalId) {
 
 // --- Auth (for future dashboard or app login) ---
 
-/** POST /api/auth/login. Body: { email, password }. Returns { user, token, expires_in }. */
+/** POST /api/auth/login. Body: { phone, password }. Returns { user, token, expires_in }. */
 export async function login(body) {
   const res = await apiFetch("/api/auth/login", {
     method: "POST",

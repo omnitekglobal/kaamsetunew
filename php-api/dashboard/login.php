@@ -10,30 +10,32 @@ if (currentUser()) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
+    $phoneRaw = trim($_POST['phone'] ?? '');
     $password = $_POST['password'] ?? '';
-    if (!$email || !$password) {
-        $error = 'Email and password are required.';
+    $phone = preg_replace('/\D/', '', $phoneRaw);
+    if (!$phone || !$password) {
+        $error = 'Mobile number and password are required.';
     } else {
         $pdo = getDb();
-        $stmt = $pdo->prepare('SELECT id, name, email, role, is_active FROM users WHERE email = ?');
-        $stmt->execute([$email]);
+        $stmt = $pdo->prepare('SELECT id, name, email, phone, role, is_active FROM users WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,\'\'), \' \', \'\'), \'-\', \'\'), \'+\', \'\'), CHAR(10), \'\') = ?');
+        $stmt->execute([$phone]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$user) {
-            $error = 'Invalid email or password.';
+            $error = 'Invalid mobile number or password.';
         } else {
             $stmt = $pdo->prepare('SELECT password FROM users WHERE id = ?');
             $stmt->execute([$user['id']]);
             $hash = $stmt->fetchColumn();
             if (!password_verify($password, $hash)) {
-                $error = 'Invalid email or password.';
+                $error = 'Invalid mobile number or password.';
             } elseif (!$user['is_active']) {
                 $error = 'Account is deactivated.';
             } else {
                 $_SESSION['dashboard_user'] = [
                     'id' => (int) $user['id'],
                     'name' => $user['name'],
-                    'email' => $user['email'],
+                    'email' => $user['email'] ?? '',
+                    'phone' => $user['phone'] ?? '',
                     'role' => $user['role'],
                     'is_active' => (bool) $user['is_active'],
                 ];
@@ -71,8 +73,8 @@ $pageTitle = 'Login';
         <?php endif; ?>
         <form method="post" action="">
             <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
+                <label for="phone">Mobile number</label>
+                <input type="tel" id="phone" name="phone" required placeholder="10-digit mobile number" value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>" inputmode="numeric" pattern="[0-9\s\-+]*" maxlength="15">
             </div>
             <div class="form-group">
                 <label for="password">Password</label>

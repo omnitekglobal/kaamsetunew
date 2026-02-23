@@ -5,13 +5,15 @@
  * This ensures all requests go through index.php so config/database.php and routes load.
  */
 
-// CORS: allow all origins and methods (preflight must be handled here so response has headers)
+// CORS: allow all origins and methods (preflight must be handled here so response has headers).
+// Important: OPTIONS must return 204 with these headers. If the server redirects OPTIONS (e.g. HTTP→HTTPS,
+// trailing slash, or auth), the browser will fail with "Redirect is not allowed for a preflight request".
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin');
 header('Access-Control-Max-Age: 86400');
 
-// Preflight OPTIONS: respond immediately so CORS headers are always present
+// Preflight OPTIONS: respond immediately so CORS headers are always present (no redirect).
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
     http_response_code(204);
     exit;

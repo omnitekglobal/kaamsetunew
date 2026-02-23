@@ -1,9 +1,19 @@
-# KaamSetu PHP API - Apache: route all requests to index.php
+# KaamSetu PHP API - Apache: route all requests through index.php (front controller)
+# If we don't, /api/services runs api/services/index.php directly and getDb() is undefined.
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # All /api/* must go to index.php (never to api/*/index.php)
+    RewriteRule ^api/ index.php [QSA,L]
+
+    # Existing files/dirs (e.g. dashboard, uploads) are served as-is
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Everything else
     RewriteRule ^ index.php [QSA,L]
 </IfModule>
 

@@ -4,17 +4,26 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 The frontend uses the **PHP API** (`php-api/`) for categories, services, bookings, and professional registration.
 
+### Local development
+
 1. **Run the PHP API** (from repo root):
    ```bash
-   cd php-api && php -S localhost:8080 -t .
+   cd php-api && php -S localhost:8080 -t . router.php
    ```
 2. **Create `.env.local`** in the Next.js root (copy from `.env.example`):
-   ```
-   NEXT_PUBLIC_API_URL=http://localhost:8080
-   ```
+   - Either set `API_URL=http://localhost:8080` and leave `NEXT_PUBLIC_API_URL` unset (browser uses same-origin `/api/*`, Next proxies to PHP), or
+   - Set `NEXT_PUBLIC_API_URL=http://localhost:8080` to call the API directly from the browser.
 3. Run the Next.js app: `npm run dev` and open http://localhost:3000.
 
-The app fetches categories and services from the API, submits bookings and professional registrations to the API, and shows success pages using API data. If the API is unavailable, the services page falls back to static data.
+### Production (avoid CORS)
+
+To avoid CORS and “Redirect is not allowed for a preflight request”:
+
+- **Do not set** `NEXT_PUBLIC_API_URL` in production. The browser must call your app’s origin only (e.g. `https://pinkysreya.com/api/...`).
+- **Set** `API_URL` to your PHP API base URL in your hosting env (e.g. Vercel → Project → Settings → Environment Variables). The API can be on a subdomain (e.g. `https://setu.pinkysreya.com`) or any other domain.
+- Next.js will proxy `/api/*` to that URL on the server. No cross-origin requests from the browser, so no CORS and no preflight redirect issues.
+
+If you set `NEXT_PUBLIC_API_URL` to the API domain, the browser hits that domain directly and the API server must not redirect `OPTIONS` requests (many hosts redirect and cause the preflight error).
 
 ## Getting Started
 
