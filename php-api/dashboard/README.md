@@ -31,21 +31,19 @@ Role-based admin dashboard for KaamSetu. Manage users, categories, services, and
 
 ## Roles & Access
 
-| Role        | Dashboard home | Users | Categories | Services | Bookings | Professionals | Profile |
-|------------|----------------|-------|------------|----------|----------|---------------|--------|
-| super_admin| ✓              | Full  | Full       | Full     | View     | View          | -      |
-| admin      | ✓              | Full  | Full       | Full     | View     | View          | -      |
-| staff      | ✓              | -     | Full       | Full     | View     | View          | -      |
-| professional | ✓            | -     | -          | -        | -        | -             | Own    |
-| end_user   | ✓              | -     | -          | -        | -        | -             | Own    |
+| Role         | Dashboard home | Users | Categories | Services | Bookings | Professionals | Profile |
+|-------------|----------------|-------|------------|----------|----------|---------------|--------|
+| super_admin | ✓              | Add team leaders | Full | Full | View/Edit | View/Edit | - |
+| team_leader | ✓              | Add staff        | Full | Full | View/Edit | View/Edit | - |
+| staff       | ✓              | -                | -    | -    | View/Edit | View/Edit | Own |
+| professional| ✓              | -                | -    | -    | -         | -         | Own |
+| end_user    | ✓              | -                | -    | -    | -         | -         | Own |
 
-- **Super admin** approves professionals and can manage everything; creates/assigns **staff** (and admins) via **Users**.
-- **Professional** = service provider (electrician, plumber, etc.). **End user** = customer who books/takes services.
-- **Users**: Only super_admin and admin can list, add, edit, delete. Staff cannot access Users.
-- **Categories / Services**: super_admin, admin, and staff get full CRUD.
-- **Bookings**: Read-only list (and search) for super_admin, admin, staff.
-- **Professionals**: List from Next.js “Become a Professional” form. **Only super_admin and admin** can **Approve** or **Reject**. On **Approve**, a **user account** is created with role **professional** (service provider), not end_user, with default password. Staff can only view.
-- **Profile**: End users (customers) and professionals (service providers) see Dashboard and My Profile only.
+- **Super** can add **team leaders** only (Users page shows team leaders). Full access to categories, services, bookings, professionals.
+- **Team leader** can add **staff** only (Users page shows staff). Full access to categories, services, bookings, professionals.
+- **Staff** can only view and edit **bookings**, **professionals**, and **own profile**. No Users, Categories, or Services.
+- **Professionals**: List from Next.js “Become a Professional” form. **Only super and team leader** can **Approve** or **Reject**. On **Approve**, a **user account** is created with role **professional** (service provider), not end_user, with default password. Staff can view and edit but not approve/reject.
+- **Profile**: Staff, professionals, and end users can edit their own profile.
 
 ## Professionals: approve/reject and migration
 
@@ -59,7 +57,7 @@ Role-based admin dashboard for KaamSetu. Manage users, categories, services, and
 ## Pages
 
 - **Dashboard** — Stats and welcome.
-- **Users** — List, filter by role/search; Add/Edit (modal); Delete (admin/super_admin only). Super admin uses this to create staff and other admins.
+- **Users** — Super sees and manages team leaders only; team leader sees and manages staff only. Add/Edit (modal); Delete within scope.
 - **Categories** — List; Add/Edit (modal); Delete.
 - **Services** — List by category; Add/Edit (modal); Delete.
 - **Bookings** — List from `bookings` table; search.

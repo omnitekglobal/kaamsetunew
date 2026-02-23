@@ -5,7 +5,7 @@ $pdo = getDb();
 $categoryId = isset($_GET['category_id']) ? (int) $_GET['category_id'] : null;
 $activeOnly = !isset($_GET['all']) || $_GET['all'] !== '1';
 
-$sql = 'SELECT s.id, s.category_id, s.name, s.slug, s.description, s.is_active, s.sort_order, s.created_at, c.name AS category_name
+$sql = 'SELECT s.id, s.category_id, s.name, s.slug, s.description, s.icon, s.is_active, s.sort_order, s.created_at, c.name AS category_name
         FROM services s
         LEFT JOIN categories c ON c.id = s.category_id
         WHERE 1=1';

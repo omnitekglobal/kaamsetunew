@@ -20,5 +20,11 @@ if (file_exists($envPath)) {
     }
 }
 
-define('DASHBOARD_BASE', rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/') ?: '');
-define('DASHBOARD_ROLES', ['super_admin', 'admin', 'staff', 'professional', 'end_user']);
+// When run via router, SCRIPT_NAME can be the request URI (e.g. /dashboard/assets/style.css); use request path so base is always /dashboard.
+$reqUri = $_SERVER['REQUEST_URI'] ?? '';
+$reqPath = parse_url($reqUri, PHP_URL_PATH) ?: '';
+$dashboardBase = (strpos($reqPath, '/dashboard') === 0)
+    ? '/dashboard'
+    : (rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/') ?: '');
+define('DASHBOARD_BASE', $dashboardBase);
+define('DASHBOARD_ROLES', ['super_admin', 'team_leader', 'staff', 'professional', 'end_user']);

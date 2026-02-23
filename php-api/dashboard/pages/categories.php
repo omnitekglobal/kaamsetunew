@@ -1,6 +1,6 @@
 <?php
 
-requireRole('super_admin', 'admin', 'staff');
+requireRole('super_admin', 'team_leader');
 $pdo = getDb();
 
 $message = '';

@@ -1,6 +1,6 @@
 <?php
 
-requireStaff(); // staff, admin, super_admin
+requireAdmin(); // super, team_leader only
 
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 $name = trim($input['name'] ?? '');

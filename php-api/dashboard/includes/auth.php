@@ -29,31 +29,57 @@ function requireRole(string ...$allowed): array {
     return $user;
 }
 
+/** Super can add team leader; team leader can add staff. Staff cannot access users. */
 function canAccessUsers(string $role): bool {
-    return in_array($role, ['super_admin', 'admin'], true);
+    return in_array($role, ['super_admin', 'team_leader'], true);
 }
 
+/** Who can create/delete users: super → team_leader only; team_leader → staff only. */
 function canCreateDeleteUsers(string $role): bool {
-    return in_array($role, ['super_admin', 'admin'], true);
+    return in_array($role, ['super_admin', 'team_leader'], true);
 }
 
+/** Roles the current user is allowed to create. Super can only create team_leader; team_leader can only create staff. */
+function allowedRolesToCreate(string $role): array {
+    if ($role === 'super_admin') return ['team_leader'];
+    if ($role === 'team_leader') return ['staff'];
+    return [];
+}
+
+/** Roles the current user is allowed to manage (list/edit). Super sees team_leader; team_leader sees staff. */
+function managedRoleScope(string $role): ?string {
+    if ($role === 'super_admin') return 'team_leader';
+    if ($role === 'team_leader') return 'staff';
+    return null;
+}
+
+/** Categories & services: only super and team leader. Staff cannot. */
 function canAccessCategoriesServices(string $role): bool {
-    return in_array($role, ['super_admin', 'admin', 'staff'], true);
+    return in_array($role, ['super_admin', 'team_leader'], true);
 }
 
+/** Bookings: super, team leader, staff, and professional (professional sees only own/service-matching bookings). */
 function canAccessBookings(string $role): bool {
-    return in_array($role, ['super_admin', 'admin', 'staff'], true);
+    return in_array($role, ['super_admin', 'team_leader', 'staff', 'professional'], true);
 }
 
+/** Professionals: super, team leader, staff (view and edit). */
 function canAccessProfessionals(string $role): bool {
-    return in_array($role, ['super_admin', 'admin', 'staff'], true);
+    return in_array($role, ['super_admin', 'team_leader', 'staff'], true);
 }
 
-/** Only admin and super_admin can approve/reject professionals and create user accounts */
+/** Approve/reject professional registrations: only super and team leader. */
 function canApproveRejectProfessional(string $role): bool {
-    return in_array($role, ['super_admin', 'admin'], true);
+    return in_array($role, ['super_admin', 'team_leader'], true);
 }
 
 function roleLabel(string $role): string {
-    return ucfirst(str_replace('_', ' ', $role));
+    $labels = [
+        'super_admin' => 'Super',
+        'team_leader' => 'Team Leader',
+        'staff' => 'Staff',
+        'professional' => 'Professional',
+        'end_user' => 'End User',
+    ];
+    return $labels[$role] ?? ucfirst(str_replace('_', ' ', $role));
 }

@@ -1,8 +1,11 @@
 <?php
 
-requireStaff(); // super_admin, admin, staff can list users
+// Only super and team_leader can list users; staff cannot
+$payload = requireRole('super_admin', 'team_leader');
 
 $pdo = getDb();
+$callerRole = $payload->role ?? '';
+$scopeRole = $callerRole === 'super_admin' ? 'team_leader' : ($callerRole === 'team_leader' ? 'staff' : null);
 $role = $_GET['role'] ?? null;
 $search = trim($_GET['search'] ?? '');
 $page = max(1, (int)($_GET['page'] ?? 1));
@@ -11,10 +14,8 @@ $offset = ($page - 1) * $limit;
 
 $sql = 'SELECT id, name, email, phone, role, is_active, created_at FROM users WHERE 1=1';
 $params = [];
-if ($role !== null && $role !== '') {
-    $sql .= ' AND role = ?';
-    $params[] = $role;
-}
+$sql .= ' AND role = ?';
+$params[] = $scopeRole;
 if ($search !== '') {
     $sql .= ' AND (name LIKE ? OR email LIKE ?)';
     $params[] = "%$search%";

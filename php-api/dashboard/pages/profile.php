@@ -34,6 +34,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $stmt = $pdo->prepare('SELECT id, name, email, phone, role, created_at FROM users WHERE id = ?');
 $stmt->execute([$user['id']]);
 $me = $stmt->fetch(PDO::FETCH_ASSOC);
+
+$professionalRecord = null;
+if (($me['role'] ?? '') === 'professional' && $pdo->query("SHOW TABLES LIKE 'professionals'")->rowCount() > 0) {
+    $stmt = $pdo->prepare('SELECT professionalId, name, phone, email, city, state, pincode, language, services, status FROM professionals WHERE user_id = ? LIMIT 1');
+    $stmt->execute([$user['id']]);
+    $professionalRecord = $stmt->fetch(PDO::FETCH_ASSOC);
+}
 ?>
 <div class="page-header">
     <h1>My Profile</h1>
@@ -64,3 +71,23 @@ $me = $stmt->fetch(PDO::FETCH_ASSOC);
         </div>
     </form>
 </div>
+<?php if ($professionalRecord): ?>
+<div class="card mt-2" style="max-width: 480px;">
+    <h2 class="h5 mb-2">Service provider details</h2>
+    <p class="text-muted small mb-2">Read-only; managed from Professionals when you were approved.</p>
+    <dl class="profile-dl">
+        <dt>Services</dt>
+        <dd><?= htmlspecialchars($professionalRecord['services'] ?? '-') ?></dd>
+        <dt>City</dt>
+        <dd><?= htmlspecialchars($professionalRecord['city'] ?? '-') ?></dd>
+        <dt>State</dt>
+        <dd><?= htmlspecialchars($professionalRecord['state'] ?? '-') ?></dd>
+        <dt>Pincode</dt>
+        <dd><?= htmlspecialchars($professionalRecord['pincode'] ?? '-') ?></dd>
+        <dt>Language</dt>
+        <dd><?= htmlspecialchars($professionalRecord['language'] ?? '-') ?></dd>
+        <dt>Status</dt>
+        <dd><?= htmlspecialchars($professionalRecord['status'] ?? '-') ?></dd>
+    </dl>
+</div>
+<?php endif; ?>

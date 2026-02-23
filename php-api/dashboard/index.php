@@ -14,7 +14,7 @@ if (canAccessCategoriesServices($user['role'])) {
 }
 if (canAccessBookings($user['role'])) $allowedPages[] = 'bookings';
 if (canAccessProfessionals($user['role'])) $allowedPages[] = 'professionals';
-if (in_array($user['role'], ['end_user', 'professional'], true)) $allowedPages[] = 'profile';
+if (in_array($user['role'], ['end_user', 'professional', 'staff'], true)) $allowedPages[] = 'profile';
 
 if (!in_array($page, $allowedPages, true)) {
     $page = 'home';

@@ -1,21 +1,26 @@
 <?php
 
-// Only admin and super_admin can create users (and set role)
-requireAdmin();
+// Super can create team_leader; team_leader can create staff
+$payload = requireAuth();
+$callerRole = $payload->role ?? 'end_user';
+$allowedRoles = [];
+if ($callerRole === 'super_admin') $allowedRoles = ['team_leader'];
+elseif ($callerRole === 'team_leader') $allowedRoles = ['staff'];
+else jsonError('Forbidden', 403);
 
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 $name = trim($input['name'] ?? '');
 $email = trim($input['email'] ?? '');
 $password = $input['password'] ?? '';
 $phone = trim($input['phone'] ?? '');
-$role = trim($input['role'] ?? 'end_user');
+$role = trim($input['role'] ?? $allowedRoles[0]);
 
 if (!$name || !$email || !$password) {
     jsonError('Name, email and password are required');
 }
 
-if (!in_array($role, ROLES, true)) {
-    jsonError('Invalid role. Allowed: ' . implode(', ', ROLES));
+if (!in_array($role, $allowedRoles, true)) {
+    jsonError('Invalid role. You may only create: ' . implode(', ', $allowedRoles));
 }
 
 if (strlen($password) < 8) {

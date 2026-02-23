@@ -5,8 +5,8 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
-/** Role hierarchy: super_admin > admin > staff > professional (service provider) > end_user (customer) */
-const ROLES = ['super_admin', 'admin', 'staff', 'professional', 'end_user'];
+/** Roles: super_admin (adds team_leader), team_leader (adds staff), staff (bookings/professionals/profile only), professional, end_user */
+const ROLES = ['super_admin', 'team_leader', 'staff', 'professional', 'end_user'];
 
 function getJwtSecret(): string {
     $secret = $_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET');
@@ -54,7 +54,7 @@ function requireAuth(): object {
 }
 
 /**
- * Require one of the given roles (e.g. requireRole('super_admin', 'admin'))
+ * Require one of the given roles (e.g. requireRole('super_admin', 'team_leader'))
  */
 function requireRole(string ...$allowedRoles): object {
     $payload = requireAuth();
@@ -73,17 +73,17 @@ function requireSuperAdmin(): object {
 }
 
 /**
- * Admin or super_admin (staff cannot access admin-only routes)
+ * Super or team leader only (user management, categories, services)
  */
 function requireAdmin(): object {
-    return requireRole('super_admin', 'admin');
+    return requireRole('super_admin', 'team_leader');
 }
 
 /**
- * Staff, admin, or super_admin
+ * Staff, team leader, or super (bookings, professionals, profile)
  */
 function requireStaff(): object {
-    return requireRole('super_admin', 'admin', 'staff');
+    return requireRole('super_admin', 'team_leader', 'staff');
 }
 
 /**

@@ -1,44 +1,57 @@
 <?php
 
-requireRole('super_admin', 'admin');
+requireRole('super_admin', 'team_leader');
 $pdo = getDb();
+
+$managedScope = managedRoleScope($user['role']);
+$allowedToCreate = allowedRolesToCreate($user['role']);
 
 $message = '';
 $error = '';
 
-// Delete
+// Delete: only within scope (super can delete team_leader; team_leader can delete staff)
 if (canCreateDeleteUsers($user['role']) && isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int) $_GET['delete'];
-    if ($id !== $user['id']) {
-        $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
-        $message = 'User deleted.';
-    } else {
+    if ($id === $user['id']) {
         $error = 'You cannot delete your own account.';
+    } else {
+        $stmt = $pdo->prepare('SELECT id, role FROM users WHERE id = ?');
+        $stmt->execute([$id]);
+        $target = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($target && $managedScope !== null && $target['role'] === $managedScope) {
+            $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
+            $message = 'User deleted.';
+        } else {
+            $error = 'You cannot delete that user.';
+        }
     }
 }
 
-// Create / Update
+// Create / Update: role must be in allowed set
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['_action'] ?? 'create';
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
     $phone = trim($_POST['phone'] ?? '');
-    $role = $_POST['role'] ?? 'end_user';
+    $role = $_POST['role'] ?? '';
     $is_active = isset($_POST['is_active']) ? 1 : 0;
     $id = (int) ($_POST['id'] ?? 0);
 
-    if (!in_array($role, DASHBOARD_ROLES, true)) $role = 'end_user';
+    if (!in_array($role, $allowedToCreate, true)) $role = $allowedToCreate[0] ?? 'staff';
     if (!$name || !$email) {
         $error = 'Name and email are required.';
     } elseif ($action === 'create' && strlen($password) < 8) {
         $error = 'Password must be at least 8 characters.';
     } else {
         if ($action === 'update' && $id) {
-            $stmt = $pdo->prepare('SELECT id FROM users WHERE id = ?');
+            $stmt = $pdo->prepare('SELECT id, role FROM users WHERE id = ?');
             $stmt->execute([$id]);
-            if (!$stmt->fetch()) {
+            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$existing) {
                 $error = 'User not found.';
+            } elseif ($managedScope === null || $existing['role'] !== $managedScope) {
+                $error = 'You cannot edit that user.';
             } else {
                 $sql = 'UPDATE users SET name = ?, email = ?, phone = ?, role = ?, is_active = ?';
                 $params = [$name, $email, $phone ?: null, $role, $is_active];
@@ -68,14 +81,17 @@ $search = trim($_GET['search'] ?? '');
 $roleFilter = $_GET['role'] ?? '';
 $sql = 'SELECT id, name, email, phone, role, is_active, created_at FROM users WHERE 1=1';
 $params = [];
+if ($managedScope !== null) {
+    $sql .= ' AND role = ?';
+    $params[] = $managedScope;
+}
 if ($search !== '') {
     $sql .= ' AND (name LIKE ? OR email LIKE ?)';
     $params[] = "%$search%";
     $params[] = "%$search%";
 }
-if ($roleFilter !== '') {
-    $sql .= ' AND role = ?';
-    $params[] = $roleFilter;
+if ($roleFilter !== '' && $roleFilter === $managedScope) {
+    // already filtered by scope
 }
 $sql .= ' ORDER BY id DESC';
 $stmt = $params ? $pdo->prepare($sql) : $pdo->query($sql);
@@ -93,14 +109,11 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <form method="get" class="toolbar">
     <input type="hidden" name="page" value="users">
     <input type="text" name="search" placeholder="Search name or email" value="<?= htmlspecialchars($search) ?>">
-    <select name="role">
-        <option value="">All roles</option>
-        <?php foreach (DASHBOARD_ROLES as $r): ?>
-            <option value="<?= htmlspecialchars($r) ?>" <?= $roleFilter === $r ? 'selected' : '' ?>><?= htmlspecialchars(roleLabel($r)) ?></option>
-        <?php endforeach; ?>
-    </select>
-    <button type="submit" class="btn btn-secondary">Filter</button>
+    <button type="submit" class="btn btn-secondary">Search</button>
 </form>
+<?php if ($managedScope): ?>
+<p class="text-muted">Showing <?= htmlspecialchars(roleLabel($managedScope)) ?>s only.</p>
+<?php endif; ?>
 <div class="card overflow-x">
     <table class="table">
         <thead>
@@ -174,8 +187,8 @@ $modalOpen = !empty($editUser);
             <div class="form-group">
                 <label>Role</label>
                 <select name="role">
-                    <?php foreach (DASHBOARD_ROLES as $r): ?>
-                        <option value="<?= htmlspecialchars($r) ?>" <?= ($editUser['role'] ?? 'end_user') === $r ? 'selected' : '' ?>><?= htmlspecialchars(roleLabel($r)) ?></option>
+                    <?php foreach ($allowedToCreate as $r): ?>
+                        <option value="<?= htmlspecialchars($r) ?>" <?= ($editUser['role'] ?? $r) === $r ? 'selected' : '' ?>><?= htmlspecialchars(roleLabel($r)) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>

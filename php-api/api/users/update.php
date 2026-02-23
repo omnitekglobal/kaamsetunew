@@ -19,12 +19,17 @@ if (!$user) {
     jsonError('User not found', 404);
 }
 
-// End user and professional can only update own profile (limited fields). Admin/super_admin can update anyone and role.
+// End user and professional can only update own profile (limited fields). Super/team_leader can update users in their scope.
 $isSelf = ($id === $currentId);
-$canChangeRole = in_array($currentRole, ['super_admin', 'admin'], true);
+$canChangeRole = in_array($currentRole, ['super_admin', 'team_leader'], true);
+$targetRole = $user['role'] ?? '';
+$allowedScope = $currentRole === 'super_admin' ? 'team_leader' : ($currentRole === 'team_leader' ? 'staff' : null);
 
 if (in_array($currentRole, ['end_user', 'professional'], true) && !$isSelf) {
     jsonError('Forbidden', 403);
+}
+if ($canChangeRole && !$isSelf && $allowedScope !== null && $targetRole !== $allowedScope) {
+    jsonError('You can only update ' . $allowedScope . ' users', 403);
 }
 
 $updates = [];
@@ -48,9 +53,13 @@ foreach ($allowedAdmin as $field) {
         $updates[] = 'password = ?';
         $params[] = password_hash($val, PASSWORD_DEFAULT);
     } elseif ($field === 'role') {
-        if (!in_array($input['role'], ROLES, true)) jsonError('Invalid role');
+        $newRole = trim($input['role'] ?? '');
+        if (!in_array($newRole, ROLES, true)) jsonError('Invalid role');
+        if ($canChangeRole && $allowedScope !== null && $newRole !== $allowedScope) {
+            jsonError('You can only set role to ' . $allowedScope);
+        }
         $updates[] = 'role = ?';
-        $params[] = $input['role'];
+        $params[] = $newRole;
     } elseif ($field === 'is_active') {
         $updates[] = 'is_active = ?';
         $params[] = (int) (bool) $input['is_active'];

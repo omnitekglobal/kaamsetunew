@@ -19,6 +19,7 @@ Separate REST API backend for KaamSetu (users, roles, categories, services). Use
 2. **Database**
    - Create database if needed.
    - Run schema: `mysql -u user -p database < database/schema.sql`
+   - If `services` table already exists without an `icon` column, run: `mysql -u user -p database < database/add_service_icon.sql`
    - Create first super admin (optional):
      ```sql
      INSERT INTO users (name, email, password, role) VALUES
@@ -42,19 +43,19 @@ Separate REST API backend for KaamSetu (users, roles, categories, services). Use
 
 ## Roles
 
-| Role        | Description                    | Can do                                                                 |
-|------------|---------------------------------|------------------------------------------------------------------------|
-| super_admin| Full access                     | All endpoints, manage admins/staff/users, categories, services        |
-| admin      | Admin panel                     | Manage users (create/update/delete), categories, services             |
-| staff      | Support / ops                   | List users, manage categories & services, no user create/delete       |
-| professional| Service provider (e.g. from approve) | Own profile (GET/PUT me), use public categories/services        |
-| end_user   | Customer (books services)       | Own profile (GET/PUT me), use public categories/services             |
+| Role         | Description                    | Can do                                                                 |
+|-------------|---------------------------------|------------------------------------------------------------------------|
+| super_admin | Super                           | Add **team leaders**; manage categories, services, bookings, professionals |
+| team_leader | Team leader                     | Add **staff**; manage categories, services, bookings, professionals  |
+| staff       | Staff                           | View and edit **bookings**, **professionals**, and **own profile** only (no users, no categories/services) |
+| professional| Service provider                | Own profile; use public categories/services                           |
+| end_user    | Customer (books services)       | Own profile; use public categories/services                            |
 
 ## API Endpoints
 
 ### Roles (no token)
 
-- **GET** `/api/roles` — List roles: `super_admin`, `admin`, `staff`, `professional`, `end_user` (for dropdowns).
+- **GET** `/api/roles` — List roles: `super_admin`, `team_leader`, `staff`, `professional`, `end_user` (for dropdowns).
 
 ### Auth (no token)
 
@@ -69,10 +70,10 @@ Separate REST API backend for KaamSetu (users, roles, categories, services). Use
 ### Users (Bearer token)
 
 - **GET** `/api/users/me` — Current user (any role).
-- **GET** `/api/users` — List users (staff+). Query: `role`, `search`, `page`, `limit`.
-- **POST** `/api/users` — Create user (admin+). Body: `name`, `email`, `password`, `phone?`, `role`.
-- **GET** `/api/users/{id}` — Get user (self or staff+).
-- **PUT** `/api/users/{id}` — Update user (self: name/phone/password; admin+: all + role/is_active).
+- **GET** `/api/users` — List users (super or team_leader only). Super sees team_leader; team_leader sees staff. Query: `search`, `page`, `limit`.
+- **POST** `/api/users` — Create user: super can create `team_leader` only; team_leader can create `staff` only. Body: `name`, `email`, `password`, `phone?`, `role`.
+- **GET** `/api/users/{id}` — Get user (self or super/team_leader within scope).
+- **PUT** `/api/users/{id}` — Update user (self: name/phone/password; super/team_leader: users in their scope + role/is_active).
 - **DELETE** `/api/users/{id}` — Delete user (admin+). Cannot delete self.
 
 ### Categories (public read; write = staff+)
@@ -87,8 +88,8 @@ Separate REST API backend for KaamSetu (users, roles, categories, services). Use
 
 - **GET** `/api/services` — List. Query: `category_id`, `all=1`.
 - **GET** `/api/services/{id}` — One service.
-- **POST** `/api/services` — Create (staff+). Body: `category_id`, `name`, `slug?`, `description?`, `sort_order?`, `is_active?`.
-- **PUT** `/api/services/{id}` — Update (staff+).
+- **POST** `/api/services` — Create (staff+). Body: `category_id`, `name`, `slug?`, `description?`, `icon?`, `sort_order?`, `is_active?`.
+- **PUT** `/api/services/{id}` — Update (staff+). Body may include `icon` (path string).
 - **DELETE** `/api/services/{id}` — Delete (staff+).
 
 ## Request format
@@ -100,6 +101,18 @@ Separate REST API backend for KaamSetu (users, roles, categories, services). Use
 
 - Success: `{ "success": true, "message": "...", "data": ... }`
 - Error: `{ "success": false, "message": "..." }` with appropriate HTTP status (400, 401, 403, 404, 409, 500).
+
+## Booking flow (assign & log)
+
+- New bookings start with **status** `pending`. Run `database/migrations/003_booking_flow_assign_log.sql` to add: `status`, `assigned_to`, `assigned_by`, `assigned_at`, `created_by`, `created_at` on `bookings`, and the **booking_log** table.
+- **Staff / team leader / super** can **assign** a booking to a **professional** in the dashboard (Bookings → select professional → Assign). The professional then sees that booking under their own Bookings list.
+- **booking_log** records every action: `created` (with service, created_by), `assigned` (with assigned_to, assigned_by, etc.). In the dashboard, use the **Log** link next to a booking to view its history.
+
+## Service icon / image
+
+- Services can have an optional **icon** (image) stored in `services.icon` (path, e.g. `uploads/services/5.jpg`).
+- In the **dashboard**, when creating or editing a service you can upload an image (JPG, PNG, GIF, WebP). If none is uploaded, a placeholder image is shown on the frontend and in the dashboard list.
+- Uploads are stored under `php-api/uploads/services/`. The router serves `/uploads/` as static files.
 
 ## CORS
 

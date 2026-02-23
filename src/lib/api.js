@@ -144,4 +144,14 @@ export async function getRoles() {
   return res.data?.items ?? res.items ?? [];
 }
 
+/** URL for a service icon/image. Use placeholder if none. */
+export function getServiceImageUrl(service) {
+  const base = getApiUrl();
+  if (service?.icon) {
+    const path = service.icon.startsWith("/") ? service.icon : `/${service.icon}`;
+    return base ? `${base.replace(/\/$/, "")}${path}` : path;
+  }
+  return "/service-placeholder.svg";
+}
+
 export { getApiUrl };

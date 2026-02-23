@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getCategories, getServices } from "@/lib/api";
+import { getCategories, getServices, getServiceImageUrl } from "@/lib/api";
 
 const FALLBACK_SERVICES = {
   Home: [
@@ -50,6 +50,8 @@ export default function ServicesPage() {
             byCat[cat].push({
               name: s.name,
               desc: s.description || "",
+              icon: s.icon,
+              id: s.id,
             });
           });
           if (Object.keys(byCat).length) {
@@ -141,9 +143,13 @@ export default function ServicesPage() {
         ) : (
           <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredServices.map((service) => (
-              <div key={service.name} className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition transform hover:-translate-y-1">
-                <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-bold text-lg">
-                  {service.name.charAt(0)}
+              <div key={service.id || service.name} className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition transform hover:-translate-y-1">
+                <div className="h-16 w-16 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  <img
+                    src={getServiceImageUrl(service)}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
                 </div>
                 <h3 className="mt-4 text-lg font-semibold text-gray-800">{service.name}</h3>
                 <p className="text-sm text-gray-500 mt-1">{service.desc}</p>

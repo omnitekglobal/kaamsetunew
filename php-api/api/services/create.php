@@ -1,6 +1,6 @@
 <?php
 
-requireStaff();
+requireAdmin();
 
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 $categoryId = (int) ($input['category_id'] ?? 0);
@@ -34,15 +34,18 @@ if ($stmt->fetch()) {
     jsonError('Service with this slug already exists in this category', 409);
 }
 
-$stmt = $pdo->prepare('INSERT INTO services (category_id, name, slug, description, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?)');
-$stmt->execute([$categoryId, $name, $slug, $description ?: null, $sortOrder, $isActive]);
+$icon = isset($input['icon']) && is_string($input['icon']) ? trim($input['icon']) ?: null : null;
+
+$stmt = $pdo->prepare('INSERT INTO services (category_id, name, slug, description, icon, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)');
+$stmt->execute([$categoryId, $name, $slug, $description ?: null, $icon, $sortOrder, $isActive]);
 $id = (int) $pdo->lastInsertId();
 
-$stmt = $pdo->prepare('SELECT id, category_id, name, slug, description, sort_order, is_active, created_at FROM services WHERE id = ?');
+$stmt = $pdo->prepare('SELECT id, category_id, name, slug, description, icon, sort_order, is_active, created_at FROM services WHERE id = ?');
 $stmt->execute([$id]);
 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 $row['id'] = (int) $row['id'];
 $row['category_id'] = (int) $row['category_id'];
 $row['sort_order'] = (int) $row['sort_order'];
 $row['is_active'] = (bool) $row['is_active'];
+$row['icon'] = $row['icon'] ?? null;
 jsonSuccess($row, 'Service created', 201);

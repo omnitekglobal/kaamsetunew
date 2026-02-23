@@ -1,6 +1,6 @@
 <?php
 
-requireStaff();
+requireAdmin();
 
 $id = $_GET['_id'] ?? null;
 if ($id === null) {
@@ -19,7 +19,7 @@ if (!$existing) {
 
 $updates = [];
 $params = [];
-$allowed = ['category_id', 'name', 'slug', 'description', 'sort_order', 'is_active'];
+$allowed = ['category_id', 'name', 'slug', 'description', 'icon', 'sort_order', 'is_active'];
 foreach ($allowed as $field) {
     if (!array_key_exists($field, $input)) continue;
     if ($field === 'category_id') {
@@ -61,7 +61,7 @@ if (isset($input['slug'])) {
 $params[] = $id;
 $pdo->prepare('UPDATE services SET ' . implode(', ', $updates) . ' WHERE id = ?')->execute($params);
 
-$stmt = $pdo->prepare('SELECT id, category_id, name, slug, description, sort_order, is_active, updated_at FROM services WHERE id = ?');
+$stmt = $pdo->prepare('SELECT id, category_id, name, slug, description, icon, sort_order, is_active, updated_at FROM services WHERE id = ?');
 $stmt->execute([$id]);
 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 $row['id'] = (int) $row['id'];

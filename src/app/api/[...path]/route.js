@@ -28,6 +28,11 @@ export async function DELETE(req, context) {
   return proxyToBackend(req, context);
 }
 
+/** Preflight: same-origin /api/* so browser allows the actual request. */
+export async function OPTIONS() {
+  return new Response(null, { status: 204 });
+}
+
 async function proxyToBackend(req, context) {
   const base = getBackendUrl();
   if (!base) {

@@ -6,7 +6,7 @@ if ($id === null) {
 }
 
 $pdo = getDb();
-$stmt = $pdo->prepare('SELECT s.id, s.category_id, s.name, s.slug, s.description, s.is_active, s.sort_order, s.created_at, s.updated_at, c.name AS category_name FROM services s LEFT JOIN categories c ON c.id = s.category_id WHERE s.id = ?');
+$stmt = $pdo->prepare('SELECT s.id, s.category_id, s.name, s.slug, s.description, s.icon, s.is_active, s.sort_order, s.created_at, s.updated_at, c.name AS category_name FROM services s LEFT JOIN categories c ON c.id = s.category_id WHERE s.id = ?');
 $stmt->execute([$id]);
 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$row) {

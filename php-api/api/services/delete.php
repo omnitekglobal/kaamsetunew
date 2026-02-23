@@ -1,6 +1,6 @@
 <?php
 
-requireStaff();
+requireAdmin();
 
 $id = $_GET['_id'] ?? null;
 if ($id === null) {
