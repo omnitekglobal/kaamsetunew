@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import Image from "next/image";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
@@ -13,10 +14,16 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
 
           {/* Logo */}
-          <Link href="/" className="text-2xl font-bold tracking-tight">
-            <span className="text-blue-600">Kaam</span>
-            <span className="text-gray-800">Setu</span>
-          </Link>
+<Link href="/" className="flex items-center">
+  <Image 
+    src="/PinkySreyaTrans.png"          // Path to your image in the /public folder
+    alt="PinkySreya Logo" 
+    width={150}              // Adjust width as needed
+    height={40}              // Adjust height as needed
+    priority                 // Ensures the logo loads instantly
+    className="object-contain" 
+  />
+</Link>
 
           {/* Desktop Menu */}
           <nav className="hidden md:flex items-center gap-8 text-gray-700 font-medium">

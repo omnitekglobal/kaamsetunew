@@ -3,7 +3,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export const metadata = {
-  title: "KaamSetu - Service Platform",
+  title: "PinkySreya - Service Platform",
   description: "Find trusted workers near you",
 };
 

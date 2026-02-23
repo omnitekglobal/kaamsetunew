@@ -10,7 +10,7 @@ export default function HeroSection() {
             <span className="text-blue-600">Near You Instantly</span>
           </h1>
           <p className="mt-6 text-lg text-gray-600">
-            Electrician, Plumber, Barber, Driver and more. KaamSetu connects you
+            Electrician, Plumber, Barber, Driver and more. PinkySreya connects you
             with verified professionals in minutes.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
