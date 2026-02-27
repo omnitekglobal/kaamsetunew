@@ -8,6 +8,13 @@ if ($callerRole === 'super_admin') $allowedRoles = ['team_leader'];
 elseif ($callerRole === 'team_leader') $allowedRoles = ['staff'];
 else jsonError('Forbidden', 403);
 
+// Optional: referral_code support for staff users (migration 006_users_referral_code.sql)
+$hasUserReferralCode = false;
+try {
+    $stmt = getDb()->query("SHOW COLUMNS FROM users LIKE 'referral_code'");
+    $hasUserReferralCode = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 $name = trim($input['name'] ?? '');
 $email = trim($input['email'] ?? '');
@@ -39,8 +46,21 @@ if ($stmt->fetch()) {
 }
 
 $hash = password_hash($password, PASSWORD_DEFAULT);
-$stmt = $pdo->prepare('INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, ?)');
-$stmt->execute([$name, $email, $hash, $phone ?: null, $role]);
+if ($hasUserReferralCode) {
+    $referralCode = null;
+    if ($role === 'staff') {
+        try {
+            $referralCode = 'STF' . strtoupper(bin2hex(random_bytes(3)));
+        } catch (Throwable $e) {
+            $referralCode = 'STF' . strtoupper(substr(md5(uniqid((string) $email, true)), 0, 6));
+        }
+    }
+    $stmt = $pdo->prepare('INSERT INTO users (name, email, password, phone, role, referral_code) VALUES (?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$name, $email, $hash, $phone ?: null, $role, $referralCode]);
+} else {
+    $stmt = $pdo->prepare('INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, ?)');
+    $stmt->execute([$name, $email, $hash, $phone ?: null, $role]);
+}
 $userId = (int) $pdo->lastInsertId();
 
 $stmt = $pdo->prepare('SELECT id, name, email, phone, role, is_active, created_at FROM users WHERE id = ?');

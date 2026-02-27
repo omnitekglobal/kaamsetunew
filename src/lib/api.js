@@ -88,6 +88,7 @@ export async function getService(id) {
 /** POST /api/bookings. Body: { name, email?, phone, service, pincode, language }. Returns { bookingId }. */
 export async function createBooking(body) {
   const res = await apiFetch("/api/bookings", { method: "POST", body: JSON.stringify(body) });
+  console.log(res);
   return res.data ?? res;
 }
 

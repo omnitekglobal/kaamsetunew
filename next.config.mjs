@@ -2,7 +2,7 @@
 const nextConfig = {
   reactCompiler: true,
   async rewrites() {
-    const apiUrl = process.env.API_URL || "http://localhost:8080";
+    const apiUrl = process.env.API_URL || "http://localhost:8000";
     return [{ source: "/uploads/:path*", destination: `${apiUrl}/uploads/:path*` }];
   },
 };

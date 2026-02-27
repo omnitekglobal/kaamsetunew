@@ -127,3 +127,151 @@ A **role-based admin dashboard** is in the `dashboard/` folder. It uses the same
 - **URL:** Run the server from `php-api/` and open `http://localhost:8080/dashboard/`
 - **Roles:** Super Admin, Admin, Staff (manage users/categories/services/bookings/professionals), Professional (service provider; dashboard + profile), End User (customer; dashboard + profile).
 - **Details:** See [dashboard/README.md](dashboard/README.md).
+
+---
+
+## Referral & Wallet System (Technical Overview)
+
+This section documents how the **staff/professional referral system** and future **wallet** are wired in the PHP API.
+
+### Database columns & migrations
+
+- `php-api/database/migrations/005_professionals_referral_code.sql`
+  - Adds to `professionals`:
+    - `referral_code` `VARCHAR(64)` NULL
+    - `referred_by_user_id` `INT UNSIGNED` NULL
+- `php-api/database/migrations/006_users_referral_code.sql`
+  - Adds to `users`:
+    - `referral_code` `VARCHAR(64)` NULL
+    - Unique index `idx_users_referral_code` on `referral_code`
+
+Run these after `database/schema.sql` and `001_professionals_status_user_id.sql`:
+
+```bash
+mysql -u user -p dbname < php-api/database/migrations/005_professionals_referral_code.sql
+mysql -u user -p dbname < php-api/database/migrations/006_users_referral_code.sql
+```
+
+### Staff referral codes
+
+- When a **staff** user is created:
+  - Via dashboard (`dashboard/pages/users.php`) or API (`POST /api/users`),
+  - If `users.referral_code` exists, a **static code** is generated once, e.g. `STFABC123`, and stored in `users.referral_code`.
+- This code is never regenerated on update and is used to attribute new professionals to that staff user.
+
+### Professional registration & referral resolution
+
+Endpoint: `POST /api/professionals/register` (`api/professionals/register.php`)
+
+- Request body (public):
+
+```json
+{
+  "name": "Pro Name",
+  "phone": "9876543210",
+  "email": "optional@example.com",
+  "city": "City",
+  "state": "State",
+  "pincode": "400001",
+  "language": "Hindi",
+  "services": "Plumbing, Electrical",
+  "referral_code": "optional-code"
+}
+```
+
+- Behaviour:
+  - Validates required fields.
+  - Generates `professionalId = 'PR' . time()`.
+  - Detects presence of `status`, `referred_by_user_id`, `referral_code` columns on `professionals`.
+  - **Referral resolution** when `referral_code` is provided:
+    1. Look up `users.referral_code = :code`.
+       - If found → `referred_by_user_id = users.id`.
+    2. Else, look up `professionals.referral_code = :code` and use their `user_id` (if not null).
+       - If found → `referred_by_user_id = professionals.user_id`.
+    3. Else → `jsonError('Invalid referral code', 400)`.
+  - Inserts into `professionals`:
+    - Always: `professionalId, name, phone, email, city, state, pincode, language, services`.
+    - Optionally:
+      - `status = 'pending'` (if `status` column exists).
+      - `referred_by_user_id` (if column exists and referral matched).
+      - `referral_code` is left `NULL` on creation; it is set later on approval.
+
+### Professional approval & own referral codes
+
+- Dashboard page: `dashboard/pages/professionals.php`.
+- When a super_admin or team_leader clicks **Approve**:
+  1. Loads professional row (`professionalId`).
+  2. If status is `pending`:
+     - Creates or reuses a `users` row with role `professional`:
+       - If email present: uses it as unique key.
+       - If email missing but phone present: generates synthetic email `pro_<digits>@auto.kaamsetu` to satisfy `users.email` constraints, while login continues by phone.
+     - Updates `professionals.status = 'approved'` and `professionals.user_id = users.id`.
+  3. If `professionals.referral_code` exists and is currently NULL/empty:
+
+```php
+$proReferralCode = 'PRO' . strtoupper(bin2hex(random_bytes(3))); // fallback MD5 if random_bytes fails
+UPDATE professionals
+SET referral_code = :code
+WHERE professionalId = :id AND (referral_code IS NULL OR referral_code = '');
+```
+
+- Result: every approved professional can later refer other professionals with their own `professionals.referral_code`.
+
+### Internal referral creation from dashboard
+
+`dashboard/pages/profile.php` allows **staff** and **professional** roles to:
+
+- See their own referral code (from `users.referral_code` or `professionals.referral_code` for professionals).
+- See a count of how many professionals they referred:
+
+```sql
+SELECT COUNT(*) FROM professionals WHERE referred_by_user_id = :current_user_id;
+```
+
+- Create a new professional **directly from the dashboard**:
+  - Form fields: `pro_name`, `pro_phone`, `pro_email`, `pro_city`, `pro_state`, `pro_pincode`, `pro_language`, `pro_services`.
+  - Inserts into `professionals` with:
+    - `status = 'pending'` (if available).
+    - `referred_by_user_id = current users.id` (staff or professional).
+    - `referral_code = NULL` (auto-assigned on approval).
+
+### Referral reporting / management
+
+Dashboard page: `dashboard/pages/referrals.php` (super_admin & team_leader only).
+
+- **Staff Referral Codes**
+
+```sql
+SELECT u.id, u.name, u.email, u.phone, u.referral_code,
+       COUNT(p.professionalId) AS total_referred
+FROM users u
+LEFT JOIN professionals p ON p.referred_by_user_id = u.id
+WHERE u.role = 'staff'
+GROUP BY u.id, u.name, u.email, u.phone, u.referral_code
+ORDER BY total_referred DESC, u.id DESC;
+```
+
+- **Professional Referral Codes**
+
+```sql
+SELECT p.professionalId, p.name, p.phone, p.email, p.referral_code,
+       u.id AS user_id,
+       COUNT(r.professionalId) AS total_referred
+FROM professionals p
+JOIN users u ON p.user_id = u.id
+LEFT JOIN professionals r ON r.referred_by_user_id = u.id
+GROUP BY p.professionalId, p.name, p.phone, p.email, p.referral_code, u.id
+HAVING p.referral_code IS NOT NULL
+ORDER BY total_referred DESC, p.professionalId DESC;
+```
+
+These queries drive the admin **Referrals** dashboard so you can see how many professionals each staff member or professional has onboarded.
+
+### Wallet (placeholder)
+
+- Dashboard page: `dashboard/pages/wallet.php`.
+- Currently a **full-page “Coming Soon”** screen, visible for:
+  - `super_admin`, `team_leader`, `staff`, `professional`.
+- Intended future implementation:
+  - Show balances and payout history derived from referral activity and bookings.
+  - Use `professionals.referred_by_user_id` and bookings/commissions logic to compute earnings.

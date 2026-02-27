@@ -42,6 +42,14 @@ $path = trim(preg_replace('#/+#', '/', trim($path, '/')), '/');
 $path = $path === '' ? '/' : '/' . $path;
 $method = $_SERVER['REQUEST_METHOD'];
 
+// If root is hit from a browser (HTML request), send them to the dashboard instead of JSON Not Found.
+// API clients typically send Accept: application/json or */*, so they still get JSON errors.
+$accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+if ($path === '/' && stripos($accept, 'text/html') !== false) {
+    header('Location: /dashboard/index.php');
+    exit;
+}
+
 // Remove base path only if API runs in a subdir (e.g. /php-api/api/...). Never strip if
 // that would turn the path into "/" (e.g. request /api/services with SCRIPT_NAME /api/services/index.php).
 $scriptName = dirname($_SERVER['SCRIPT_NAME'] ?? '');

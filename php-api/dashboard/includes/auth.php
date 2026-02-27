@@ -34,9 +34,17 @@ function canAccessUsers(string $role): bool {
     return in_array($role, ['super_admin', 'team_leader'], true);
 }
 
-/** Who can create/delete users: super → team_leader only; team_leader → staff only. */
+/** Who can create/delete users: super can manage all (except other supers); team_leader → staff only. */
 function canCreateDeleteUsers(string $role): bool {
     return in_array($role, ['super_admin', 'team_leader'], true);
+}
+
+/** Super can edit/delete any user except self and other super_admins; team_leader only their scope. */
+function canManageUser(string $managerRole, array $targetUser, int $managerId): bool {
+    if ((int) ($targetUser['id'] ?? 0) === $managerId) return false;
+    $scope = managedRoleScope($managerRole);
+    if ($scope === null) return ($targetUser['role'] ?? '') !== 'super_admin';
+    return ($targetUser['role'] ?? '') === $scope;
 }
 
 /** Roles the current user is allowed to create. Super can only create team_leader; team_leader can only create staff. */
@@ -46,9 +54,16 @@ function allowedRolesToCreate(string $role): array {
     return [];
 }
 
-/** Roles the current user is allowed to manage (list/edit). Super sees team_leader; team_leader sees staff. */
+/** Roles the current user can assign when editing a user. Super can set any role except super_admin. */
+function rolesEditableBy(string $role): array {
+    if ($role === 'super_admin') return ['team_leader', 'staff', 'professional', 'end_user'];
+    if ($role === 'team_leader') return ['staff'];
+    return [];
+}
+
+/** Roles the current user is allowed to manage (list/edit). Super sees all; team_leader sees staff. */
 function managedRoleScope(string $role): ?string {
-    if ($role === 'super_admin') return 'team_leader';
+    if ($role === 'super_admin') return null; // see all users
     if ($role === 'team_leader') return 'staff';
     return null;
 }
@@ -73,13 +88,20 @@ function canApproveRejectProfessional(string $role): bool {
     return in_array($role, ['super_admin', 'team_leader'], true);
 }
 
+/** Roles that appear as user sub-menus (and are valid for ?role=). Super sees all types; team_leader sees Staff only. */
+function userListRoleFilters(string $role): array {
+    if ($role === 'super_admin') return ['super_admin', 'team_leader', 'staff', 'professional', 'end_user'];
+    if ($role === 'team_leader') return ['staff'];
+    return [];
+}
+
 function roleLabel(string $role): string {
     $labels = [
-        'super_admin' => 'Super',
+        'super_admin' => 'Super Admin',
         'team_leader' => 'Team Leader',
         'staff' => 'Staff',
         'professional' => 'Professional',
-        'end_user' => 'End User',
+        'end_user' => 'Customers',
     ];
     return $labels[$role] ?? ucfirst(str_replace('_', ' ', $role));
 }

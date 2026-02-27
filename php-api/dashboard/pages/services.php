@@ -100,13 +100,27 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
 }
 
 $categoryFilter = isset($_GET['category_id']) ? (int) $_GET['category_id'] : null;
+$servicesPerPage = 20;
+$servicesPage = max(1, (int) ($_GET['p'] ?? 1));
+
+$countSql = 'SELECT COUNT(*) FROM services s WHERE 1=1';
+$countParams = [];
+if ($categoryFilter) {
+    $countSql .= ' AND s.category_id = ?';
+    $countParams[] = $categoryFilter;
+}
+$stmt = $countParams ? $pdo->prepare($countSql) : $pdo->query($countSql);
+$stmt->execute($countParams);
+$totalServices = (int) $stmt->fetchColumn();
+
+$offset = ($servicesPage - 1) * $servicesPerPage;
 $sql = 'SELECT s.id, s.category_id, s.name, s.slug, s.icon, s.is_active, s.sort_order, s.created_at, c.name AS category_name FROM services s LEFT JOIN categories c ON c.id = s.category_id WHERE 1=1';
 $params = [];
 if ($categoryFilter) {
     $sql .= ' AND s.category_id = ?';
     $params[] = $categoryFilter;
 }
-$sql .= ' ORDER BY s.sort_order ASC, s.id ASC';
+$sql .= ' ORDER BY s.sort_order ASC, s.id ASC LIMIT ' . $servicesPerPage . ' OFFSET ' . $offset;
 $stmt = $params ? $pdo->prepare($sql) : $pdo->query($sql);
 $stmt->execute($params);
 $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -135,6 +149,10 @@ if ($editId) {
     </select>
     <button type="submit" class="btn btn-secondary">Filter</button>
 </form>
+<?php
+$paginationQueryParams = ['page' => 'services'];
+if ($categoryFilter) $paginationQueryParams['category_id'] = $categoryFilter;
+?>
 <div class="card overflow-x">
     <table class="table">
         <thead>
@@ -175,6 +193,12 @@ if ($editId) {
             <?php endforeach; ?>
         </tbody>
     </table>
+    <?php
+    $paginationTotal = $totalServices;
+    $paginationPage = $servicesPage;
+    $paginationPerPage = $servicesPerPage;
+    require __DIR__ . '/../includes/pagination.php';
+    ?>
 </div>
 
 <div id="svcModal" class="modal <?= $editSvc ? 'open' : '' ?>">

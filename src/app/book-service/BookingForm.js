@@ -98,6 +98,7 @@ export default function BookingForm() {
       });
       router.push(`/book-service/success/${data.bookingId}`);
     } catch (err) {
+      console.log(err);
       alert(err.message || "Something went wrong");
     }
   };

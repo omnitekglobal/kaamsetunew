@@ -303,6 +303,61 @@ body {
   font-weight: 600;
 }
 
+.sidebar-nav .nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-nav .nav-group-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.6rem 1rem 0.5rem 1.1rem;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  border-left: 3px solid transparent;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition), color var(--transition);
+  text-align: left;
+}
+
+.sidebar-nav .nav-group-label:hover {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+.sidebar-nav .nav-group-chevron {
+  flex-shrink: 0;
+  transition: transform var(--transition);
+}
+
+.sidebar-nav .nav-group.open .nav-group-chevron {
+  transform: rotate(180deg);
+}
+
+.sidebar-nav .nav-group-sub {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.25s ease-out;
+}
+
+.sidebar-nav .nav-group.open .nav-group-sub {
+  max-height: 320px;
+}
+
+.sidebar-nav .nav-group .nav-sub {
+  padding-left: 1.5rem;
+  font-size: 0.9rem;
+}
+
 .main-content {
   grid-area: main;
   padding: 1.5rem;
@@ -426,6 +481,79 @@ body {
 }
 
 .overflow-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ----- Pagination ----- */
+.pagination-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 0.75rem 0;
+}
+
+.pagination-info {
+  font-size: 0.9rem;
+  color: var(--gray-500);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.pagination-btn,
+.pagination-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--gray-700);
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.pagination-btn:hover:not(.disabled),
+.pagination-num:hover {
+  background: var(--gray-200);
+  color: var(--gray-900);
+  border-color: var(--gray-300);
+}
+
+.pagination-num.current {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  cursor: default;
+}
+
+.pagination-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-ellipsis {
+  padding: 0 0.25rem;
+  color: var(--gray-400);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .pagination-wrap {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
 
 /* ----- Table (desktop) ----- */
 .table-wrap {
@@ -567,6 +695,7 @@ body {
 
 .form-group input[type="text"],
 .form-group input[type="email"],
+.form-group input[type="tel"],
 .form-group input[type="password"],
 .form-group input[type="number"],
 .form-group input[type="file"],

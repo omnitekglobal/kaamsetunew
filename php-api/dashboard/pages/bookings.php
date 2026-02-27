@@ -83,21 +83,36 @@ if ($canAssign && $tableExists && $hasAssignedColumn && $_SERVER['REQUEST_METHOD
 
 $bookings = [];
 $professionalsForAssign = [];
+$totalBookings = 0;
+$bookingsPage = max(1, (int) ($_GET['p'] ?? 1));
+$bookingsPerPage = 20;
+$search = trim($_GET['search'] ?? '');
+
 if ($tableExists) {
     try {
         $orderCol = 'created_at';
-        if (!$hasStatusColumn) {
-            $stmt = $pdo->query("SHOW COLUMNS FROM bookings LIKE 'created_at'");
-            if (!$stmt || $stmt->rowCount() === 0) $orderCol = 'bookingId';
-        }
+        $stmt = $pdo->query("SHOW COLUMNS FROM bookings LIKE 'created_at'");
+        if (!$stmt || $stmt->rowCount() === 0) $orderCol = 'bookingId';
+        $where = '1=1';
+        $params = [];
         if ($isProfessional && $hasAssignedColumn) {
-            $stmt = $pdo->prepare("SELECT * FROM bookings WHERE assigned_to = ? ORDER BY COALESCE(assigned_at, created_at, 1) DESC LIMIT 500");
-            $stmt->execute([$user['id']]);
-            $bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } else {
-            $stmt = $pdo->query("SELECT * FROM bookings ORDER BY COALESCE(created_at, 1) DESC LIMIT 500");
-            $bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $where = 'assigned_to = ?';
+            $params[] = $user['id'];
         }
+        if ($search !== '') {
+            $where .= ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ? OR service LIKE ? OR bookingId LIKE ?)';
+            $params = array_merge($params, ["%$search%", "%$search%", "%$search%", "%$search%", "%$search%"]);
+        }
+        $countSql = "SELECT COUNT(*) FROM bookings WHERE $where";
+        $stmt = $params ? $pdo->prepare($countSql) : $pdo->query($countSql);
+        $stmt->execute($params);
+        $totalBookings = (int) $stmt->fetchColumn();
+
+        $offset = ($bookingsPage - 1) * $bookingsPerPage;
+        $listSql = "SELECT * FROM bookings WHERE $where ORDER BY COALESCE(assigned_at, created_at, 1) DESC, bookingId DESC LIMIT $bookingsPerPage OFFSET $offset";
+        $stmt = $params ? $pdo->prepare($listSql) : $pdo->query($listSql);
+        $stmt->execute($params);
+        $bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         $bookings = [];
     }
@@ -105,18 +120,6 @@ if ($tableExists) {
 if ($canAssign) {
     $stmt = $pdo->query("SELECT id, name FROM users WHERE role = 'professional' AND is_active = 1 ORDER BY name");
     $professionalsForAssign = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
-}
-
-$search = trim($_GET['search'] ?? '');
-if ($search !== '' && $tableExists && !empty($bookings)) {
-    $cols = array_keys($bookings[0]);
-    $orderCol = in_array('created_at', $cols) ? 'created_at' : (in_array('bookingId', $cols) ? 'bookingId' : $cols[0]);
-    $where = $isProfessional && $hasAssignedColumn ? 'assigned_to = ? AND' : '';
-    $params = $isProfessional && $hasAssignedColumn ? [$user['id']] : [];
-    $params = array_merge($params, ["%$search%", "%$search%", "%$search%", "%$search%", "%$search%"]);
-    $stmt = $pdo->prepare("SELECT * FROM bookings WHERE $where (name LIKE ? OR email LIKE ? OR phone LIKE ? OR service LIKE ? OR bookingId LIKE ?) ORDER BY $orderCol DESC LIMIT 500");
-    $stmt->execute($params);
-    $bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 $userNames = [];
@@ -157,7 +160,11 @@ if (!empty($bookings)) {
         <input type="text" name="search" placeholder="Search by name, email, phone, service, ID" value="<?= htmlspecialchars($search) ?>">
         <button type="submit" class="btn btn-secondary">Search</button>
     </form>
-    <?php $hasLanguageColumn = !empty($bookings) && array_key_exists('language', $bookings[0]); ?>
+    <?php
+    $paginationQueryParams = ['page' => 'bookings'];
+    if ($search !== '') $paginationQueryParams['search'] = $search;
+    $hasLanguageColumn = !empty($bookings) && array_key_exists('language', $bookings[0]);
+    ?>
     <div class="card overflow-x">
         <table class="table">
             <thead>
@@ -228,6 +235,12 @@ if (!empty($bookings)) {
         <?php if (empty($bookings)): ?>
             <p class="p-3 text-muted">No bookings found.</p>
         <?php endif; ?>
+        <?php
+        $paginationTotal = $totalBookings;
+        $paginationPage = $bookingsPage;
+        $paginationPerPage = $bookingsPerPage;
+        require __DIR__ . '/../includes/pagination.php';
+        ?>
     </div>
     <?php if ($tableExists && $canAssign): ?>
         <?php

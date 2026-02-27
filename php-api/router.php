@@ -1,53 +1,31 @@
 <?php
 /**
- * Router for PHP built-in server.
- * Run: php -S localhost:8080 -t . router.php
- * This ensures all requests go through index.php so config/database.php and routes load.
+ * Router script for PHP built-in dev server.
+ * Usage: php -S localhost:8000 router.php
+ *
+ * Without this, the built-in server bypasses index.php for paths that map to
+ * existing files (e.g. /api/services → api/services/index.php), causing
+ * "undefined function getDb()" fatal errors and missing CORS headers.
  */
 
-// CORS: allow all origins and methods (preflight must be handled here so response has headers).
-// Important: OPTIONS must return 204 with these headers. If the server redirects OPTIONS (e.g. HTTP→HTTPS,
-// trailing slash, or auth), the browser will fail with "Redirect is not allowed for a preflight request".
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin');
-header('Access-Control-Max-Age: 86400');
+$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
-// Preflight OPTIONS: respond immediately so CORS headers are always present (no redirect).
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
-    http_response_code(204);
-    exit;
+// Serve existing static files directly (dashboard assets, uploads, etc.)
+if ($uri !== '/' && file_exists(__DIR__ . $uri) && !is_dir(__DIR__ . $uri)) {
+    $ext = pathinfo($uri, PATHINFO_EXTENSION);
+    $static = ['css', 'js', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'woff', 'woff2', 'ttf', 'eot', 'map'];
+    if (in_array(strtolower($ext), $static, true)) {
+        return false; // let built-in server handle it
+    }
 }
 
-$uri = $_SERVER['REQUEST_URI'] ?? '/';
-$path = parse_url($uri, PHP_URL_PATH);
-
-// Serve static files if they exist (optional)
-if (preg_match('#^/(assets|vendor|uploads)/#', $path) && file_exists(__DIR__ . $path)) {
-    return false; // let built-in server serve the file
-}
-
-// Dashboard static assets: serve as file so dashboard PHP never runs with SCRIPT_NAME like /dashboard/assets/...
-if (preg_match('#^/dashboard/(assets|vendor)/#', $path) && file_exists(__DIR__ . $path)) {
+// Dashboard pages: serve them directly (they have their own includes)
+if (strpos($uri, '/dashboard') === 0 && file_exists(__DIR__ . $uri)) {
     return false;
 }
 
-// Dashboard: serve dashboard files so the server never runs from dashboard/ (avoids "require router.php" in wrong dir)
-if (strpos($path, '/dashboard') === 0) {
-    $sub = substr($path, strlen('/dashboard')) ?: '/';
-    $sub = ($sub === '' || $sub === '/') ? '/index.php' : $sub;
-    $sub = preg_replace('#/+#', '/', $sub);
-    if (substr($sub, -1) === '/') $sub .= 'index.php';
-    elseif (substr($sub, -4) !== '.php') $sub .= '.php';
-    $file = __DIR__ . '/dashboard' . $sub;
-    if (is_file($file)) {
-        require $file;
-        return true;
-    }
-    require __DIR__ . '/dashboard/index.php';
-    return true;
-}
+// The built-in server sets SCRIPT_NAME to the full URI (e.g. /api/auth/login) instead of
+// the actual file (/index.php). This breaks the base-path stripping logic in index.php.
+$_SERVER['SCRIPT_NAME'] = '/index.php';
 
-// Everything else goes through index.php
 require __DIR__ . '/index.php';
-return true;

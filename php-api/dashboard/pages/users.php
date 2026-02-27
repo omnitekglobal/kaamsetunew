@@ -5,9 +5,17 @@ $pdo = getDb();
 
 $managedScope = managedRoleScope($user['role']);
 $allowedToCreate = allowedRolesToCreate($user['role']);
+$rolesForEdit = rolesEditableBy($user['role']);
 
 $message = '';
 $error = '';
+
+// Optional: referral_code for staff users (added by migration 006_users_referral_code.sql)
+$hasUserReferralCode = false;
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'referral_code'");
+    $hasUserReferralCode = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
 
 // Delete: only within scope (super can delete team_leader; team_leader can delete staff)
 if (canCreateDeleteUsers($user['role']) && isset($_GET['delete']) && is_numeric($_GET['delete'])) {
@@ -18,7 +26,7 @@ if (canCreateDeleteUsers($user['role']) && isset($_GET['delete']) && is_numeric(
         $stmt = $pdo->prepare('SELECT id, role FROM users WHERE id = ?');
         $stmt->execute([$id]);
         $target = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($target && $managedScope !== null && $target['role'] === $managedScope) {
+        if ($target && canManageUser($user['role'], $target, $user['id'])) {
             $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
             $message = 'User deleted.';
         } else {
@@ -38,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $is_active = isset($_POST['is_active']) ? 1 : 0;
     $id = (int) ($_POST['id'] ?? 0);
 
-    if (!in_array($role, $allowedToCreate, true)) $role = $allowedToCreate[0] ?? 'staff';
+    if ($action === 'create' && !in_array($role, $allowedToCreate, true)) $role = $allowedToCreate[0] ?? 'staff';
     if (!$name || !$email) {
         $error = 'Name and email are required.';
     } elseif ($action === 'create' && strlen($password) < 8) {
@@ -50,9 +58,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $existing = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$existing) {
                 $error = 'User not found.';
-            } elseif ($managedScope === null || $existing['role'] !== $managedScope) {
+            } elseif (!canManageUser($user['role'], $existing, $user['id'])) {
                 $error = 'You cannot edit that user.';
             } else {
+                if (!in_array($role, $rolesForEdit, true)) $role = $existing['role'];
                 $sql = 'UPDATE users SET name = ?, email = ?, phone = ?, role = ?, is_active = ?';
                 $params = [$name, $email, $phone ?: null, $role, $is_active];
                 if ($password !== '') {
@@ -69,8 +78,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($stmt->fetch()) {
                 $error = 'Email already registered.';
             } else {
-                $pdo->prepare('INSERT INTO users (name, email, password, phone, role, is_active) VALUES (?, ?, ?, ?, ?, ?)')
-                    ->execute([$name, $email, password_hash($password, PASSWORD_DEFAULT), $phone ?: null, $role, 1]);
+                if ($hasUserReferralCode) {
+                    $referralCode = null;
+                    if ($role === 'staff') {
+                        try {
+                            $referralCode = 'STF' . strtoupper(bin2hex(random_bytes(3)));
+                        } catch (Throwable $e) {
+                            $referralCode = 'STF' . strtoupper(substr(md5(uniqid((string) $email, true)), 0, 6));
+                        }
+                    }
+                    $pdo->prepare('INSERT INTO users (name, email, password, phone, role, is_active, referral_code) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                        ->execute([$name, $email, password_hash($password, PASSWORD_DEFAULT), $phone ?: null, $role, 1, $referralCode]);
+                } else {
+                    $pdo->prepare('INSERT INTO users (name, email, password, phone, role, is_active) VALUES (?, ?, ?, ?, ?, ?)')
+                        ->execute([$name, $email, password_hash($password, PASSWORD_DEFAULT), $phone ?: null, $role, 1]);
+                }
                 $message = 'User created.';
             }
         }
@@ -79,27 +101,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $search = trim($_GET['search'] ?? '');
 $roleFilter = $_GET['role'] ?? '';
-$sql = 'SELECT id, name, email, phone, role, is_active, created_at FROM users WHERE 1=1';
+$allowedRoles = userListRoleFilters($user['role']);
+$filterRole = null;
+if ($roleFilter !== '' && in_array($roleFilter, $allowedRoles, true)) {
+    $filterRole = $roleFilter;
+} elseif ($managedScope !== null) {
+    $filterRole = $managedScope;
+}
+
+$perPage = 20;
+$page = max(1, (int) ($_GET['p'] ?? 1));
+$offset = ($page - 1) * $perPage;
+
+$countSql = 'SELECT COUNT(*) FROM users WHERE 1=1';
+$countParams = [];
+if ($filterRole !== null) {
+    $countSql .= ' AND role = ?';
+    $countParams[] = $filterRole;
+}
+if ($search !== '') {
+    $countSql .= ' AND (name LIKE ? OR email LIKE ?)';
+    $countParams[] = "%$search%";
+    $countParams[] = "%$search%";
+}
+$stmt = $countParams ? $pdo->prepare($countSql) : $pdo->query($countSql);
+$stmt->execute($countParams);
+$totalUsers = (int) $stmt->fetchColumn();
+
+$sql = 'SELECT id, name, email, phone, role, is_active, created_at'
+    . ($hasUserReferralCode ? ', referral_code' : '')
+    . ' FROM users WHERE 1=1';
 $params = [];
-if ($managedScope !== null) {
+if ($filterRole !== null) {
     $sql .= ' AND role = ?';
-    $params[] = $managedScope;
+    $params[] = $filterRole;
 }
 if ($search !== '') {
     $sql .= ' AND (name LIKE ? OR email LIKE ?)';
     $params[] = "%$search%";
     $params[] = "%$search%";
 }
-if ($roleFilter !== '' && $roleFilter === $managedScope) {
-    // already filtered by scope
-}
-$sql .= ' ORDER BY id DESC';
+$sql .= ' ORDER BY id DESC LIMIT ' . $perPage . ' OFFSET ' . $offset;
 $stmt = $params ? $pdo->prepare($sql) : $pdo->query($sql);
 $stmt->execute($params);
 $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$pageTitleRole = $filterRole !== null ? roleLabel($filterRole) : 'All';
 ?>
 <div class="page-header">
-    <h1>Users</h1>
+    <h1>Users: <?= htmlspecialchars($pageTitleRole) ?></h1>
     <?php if (canCreateDeleteUsers($user['role'])): ?>
         <button type="button" class="btn btn-primary" onclick="document.getElementById('userModal').classList.add('open')">Add User</button>
     <?php endif; ?>
@@ -108,11 +158,17 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <?php if ($error): ?><div class="alert alert-error"><?= htmlspecialchars($error) ?></div><?php endif; ?>
 <form method="get" class="toolbar">
     <input type="hidden" name="page" value="users">
+    <?php if ($roleFilter !== ''): ?><input type="hidden" name="role" value="<?= htmlspecialchars($roleFilter) ?>"><?php endif; ?>
     <input type="text" name="search" placeholder="Search name or email" value="<?= htmlspecialchars($search) ?>">
     <button type="submit" class="btn btn-secondary">Search</button>
 </form>
-<?php if ($managedScope): ?>
-<p class="text-muted">Showing <?= htmlspecialchars(roleLabel($managedScope)) ?>s only.</p>
+<?php
+$paginationQueryParams = ['page' => 'users'];
+if ($search !== '') $paginationQueryParams['search'] = $search;
+if ($roleFilter !== '') $paginationQueryParams['role'] = $roleFilter;
+?>
+<?php if ($filterRole !== null): ?>
+<p class="text-muted">Showing <?= htmlspecialchars($pageTitleRole) ?> only.</p>
 <?php endif; ?>
 <div class="card overflow-x">
     <table class="table">
@@ -122,6 +178,7 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <th>Name</th>
                 <th>Email</th>
                 <th>Phone</th>
+                <?php if ($hasUserReferralCode): ?><th>Referral Code</th><?php endif; ?>
                 <th>Role</th>
                 <th>Status</th>
                 <th>Created</th>
@@ -135,6 +192,9 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <td><?= htmlspecialchars($u['name']) ?></td>
                     <td><?= htmlspecialchars($u['email']) ?></td>
                     <td><?= htmlspecialchars($u['phone'] ?? '-') ?></td>
+                    <?php if ($hasUserReferralCode): ?>
+                        <td><?= htmlspecialchars($u['referral_code'] ?? '-') ?></td>
+                    <?php endif; ?>
                     <td><span class="badge"><?= htmlspecialchars(roleLabel($u['role'])) ?></span></td>
                     <td><?= $u['is_active'] ? 'Active' : 'Inactive' ?></td>
                     <td><?= htmlspecialchars($u['created_at']) ?></td>
@@ -150,6 +210,12 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <?php endforeach; ?>
         </tbody>
     </table>
+    <?php
+    $paginationTotal = $totalUsers;
+    $paginationPage = $page;
+    $paginationPerPage = $perPage;
+    require __DIR__ . '/../includes/pagination.php';
+    ?>
 </div>
 
 <?php
@@ -187,7 +253,8 @@ $modalOpen = !empty($editUser);
             <div class="form-group">
                 <label>Role</label>
                 <select name="role">
-                    <?php foreach ($allowedToCreate as $r): ?>
+                    <?php $rolesForDropdown = $editUser ? $rolesForEdit : $allowedToCreate; ?>
+                    <?php foreach ($rolesForDropdown as $r): ?>
                         <option value="<?= htmlspecialchars($r) ?>" <?= ($editUser['role'] ?? $r) === $r ? 'selected' : '' ?>><?= htmlspecialchars(roleLabel($r)) ?></option>
                     <?php endforeach; ?>
                 </select>

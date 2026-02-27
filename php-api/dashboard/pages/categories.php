@@ -52,8 +52,12 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $message = 'Category deleted.';
 }
 
-$stmt = $pdo->query('SELECT id, name, slug, description, sort_order, is_active, created_at FROM categories ORDER BY sort_order ASC, id ASC');
-$categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$categoriesPerPage = 20;
+$categoriesPage = max(1, (int) ($_GET['p'] ?? 1));
+$totalCategories = (int) $pdo->query('SELECT COUNT(*) FROM categories')->fetchColumn();
+$offset = ($categoriesPage - 1) * $categoriesPerPage;
+$stmt = $pdo->query('SELECT id, name, slug, description, sort_order, is_active, created_at FROM categories ORDER BY sort_order ASC, id ASC LIMIT ' . (int) $categoriesPerPage . ' OFFSET ' . (int) $offset);
+$categories = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
 
 $editId = isset($_GET['edit']) ? (int) $_GET['edit'] : 0;
 $editCat = null;
@@ -99,6 +103,13 @@ if ($editId) {
             <?php endforeach; ?>
         </tbody>
     </table>
+    <?php
+    $paginationTotal = $totalCategories;
+    $paginationPage = $categoriesPage;
+    $paginationPerPage = $categoriesPerPage;
+    $paginationQueryParams = ['page' => 'categories'];
+    require __DIR__ . '/../includes/pagination.php';
+    ?>
 </div>
 
 <div id="catModal" class="modal <?= $editCat ? 'open' : '' ?>">
