@@ -121,6 +121,19 @@ export async function getBooking(bookingId) {
 
 // --- Professionals ---
 
+/** POST /api/professionals/request. Body: { phone, referral_code? }. First step: request to join as professional. */
+export async function requestProfessional(body) {
+  const payload = { phone: body.phone };
+  if (body.referral_code != null && String(body.referral_code).trim() !== "") {
+    payload.referral_code = String(body.referral_code).trim();
+  }
+  const res = await apiFetch("/api/professionals/request", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return res.data ?? res;
+}
+
 /** POST /api/professionals/register. Body: { name, phone, email?, city, state, pincode, language, services }. Returns { professionalId }. */
 export async function registerProfessional(body) {
   const res = await apiFetch("/api/professionals/register", {

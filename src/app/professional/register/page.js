@@ -1,286 +1,211 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { registerProfessional } from "@/lib/api";
-import { useServiceList } from "@/lib/useServiceList";
+import Link from "next/link";
+import { requestProfessional } from "@/lib/api";
+import {
+  Smartphone,
+  ShieldCheck,
+  Clock,
+  Wallet,
+  UserPlus,
+  FileCheck,
+  Bell,
+  TrendingUp,
+} from "lucide-react";
 
 export default function ProfessionalRegisterPage() {
-  const router = useRouter();
-  const { serviceList } = useServiceList();
+  const [phone, setPhone] = useState("");
+  const [referralCode, setReferralCode] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
-  const languages = [
-    "Hindi",
-    "English",
-    "Marathi",
-    "Gujarati",
-    "Tamil",
-    "Telugu",
-    "Kannada",
-    "Punjabi",
-  ];
-
-  const indianStatesUT = [
-    "Andhra Pradesh",
-    "Arunachal Pradesh",
-    "Assam",
-    "Bihar",
-    "Chhattisgarh",
-    "Goa",
-    "Gujarat",
-    "Haryana",
-    "Himachal Pradesh",
-    "Jharkhand",
-    "Karnataka",
-    "Kerala",
-    "Madhya Pradesh",
-    "Maharashtra",
-    "Manipur",
-    "Meghalaya",
-    "Mizoram",
-    "Nagaland",
-    "Odisha",
-    "Punjab",
-    "Rajasthan",
-    "Sikkim",
-    "Tamil Nadu",
-    "Telangana",
-    "Tripura",
-    "Uttar Pradesh",
-    "Uttarakhand",
-    "West Bengal",
-    "Andaman and Nicobar Islands",
-    "Chandigarh",
-    "Dadra and Nagar Haveli and Daman and Diu",
-    "Delhi",
-    "Jammu and Kashmir",
-    "Ladakh",
-    "Lakshadweep",
-    "Puducherry",
-  ];
-
-  const [formData, setFormData] = useState({
-    photo: null,
-    name: "",
-    phone: "",
-    email: "",
-    city: "",
-    state: "",
-    pincode: "",
-    language: "",
-    services: [],
-  });
-
-  const [preview, setPreview] = useState(null);
-  const [errors, setErrors] = useState({});
-
-  // Handle Input Change
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-
-    if (name === "phone" && !/^\d{0,10}$/.test(value)) return;
-    if (name === "pincode" && !/^\d{0,6}$/.test(value)) return;
-
-    setFormData({ ...formData, [name]: value });
+  const handlePhoneChange = (e) => {
+    const value = e.target.value.replace(/\D/g, "").slice(0, 10);
+    setPhone(value);
+    setError("");
   };
 
-  // Handle Photo Upload (optional)
-  const handlePhoto = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFormData({ ...formData, photo: file });
-      setPreview(URL.createObjectURL(file));
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      setError("Enter a valid 10-digit mobile number");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await requestProfessional({
+        phone,
+        referral_code: referralCode || undefined,
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setError(err.message || "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Validation
-  const validate = () => {
-    let newErrors = {};
-
-    if (!formData.name) newErrors.name = "Name is required";
-    if (!/^[6-9]\d{9}$/.test(formData.phone))
-      newErrors.phone = "Valid 10-digit mobile required";
-    if (!formData.city) newErrors.city = "City is required";
-    if (!formData.state) newErrors.state = "State is required";
-    if (formData.pincode.length !== 6)
-      newErrors.pincode = "Valid 6-digit Pincode required";
-    if (!formData.language) newErrors.language = "Language is required";
-    if (formData.services.length === 0)
-      newErrors.services = "Select at least one service";
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!validate()) return;
-
-  try {
-    const data = await registerProfessional({
-      name: formData.name,
-      phone: formData.phone,
-      email: formData.email || undefined,
-      city: formData.city,
-      state: formData.state,
-      pincode: formData.pincode,
-      language: formData.language,
-      services: formData.services.join(", "),
-    });
-    router.push(`/professional/register/success/${data.professionalId}`);
-  } catch (err) {
-    alert(err.message || "Server error");
-  }
-};
-
-
-  return (
-    <div className="min-h-screen bg-blue-50 py-12 px-4">
-      <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8">
-        <h1 className="text-3xl font-bold text-blue-700 text-center mb-8">
-          Become a Professional
-        </h1>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Photo Upload (optional) */}
-          {/* <div className="flex flex-col items-center">
-            <label className="cursor-pointer">
-              <div className="w-28 h-28 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden border-2 border-blue-200">
-                {preview ? (
-                  <img
-                    src={preview}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-blue-600 text-sm">Upload Photo</span>
-                )}
-              </div>
-              <input type="file" accept="image/*" hidden onChange={handlePhoto} />
-            </label>
-          </div> */}
-
-          {/* Basic Details */}
-          <div className="grid md:grid-cols-2 gap-4">
-            <Input label="Full Name *" name="name" value={formData.name} onChange={handleChange} error={errors.name} />
-            <Input label="Phone Number *" name="phone" value={formData.phone} onChange={handleChange} error={errors.phone} />
-            <Input label="Email (Optional)" name="email" value={formData.email} onChange={handleChange} />
-            <Input label="City/Town *" name="city" value={formData.city} onChange={handleChange} error={errors.city} />
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-blue-50 flex items-center justify-center px-4 py-12">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+          <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4">
+            <svg className="w-7 h-7 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
           </div>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            {/* State Dropdown */}
-            <div>
-              <label className="block font-medium mb-2">State / UT *</label>
-              <select
-                name="state"
-                value={formData.state}
-                onChange={handleChange}
-                className={`w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 ${
-                  errors.state ? "border-red-500" : "border-gray-300"
-                }`}
-              >
-                <option value="">Select State / UT</option>
-                {indianStatesUT.map((state) => (
-                  <option key={state} value={state}>
-                    {state}
-                  </option>
-                ))}
-              </select>
-              {errors.state && <p className="text-red-500 text-sm mt-1">{errors.state}</p>}
-            </div>
-
-            <Input label="Pincode *" name="pincode" value={formData.pincode} onChange={handleChange} error={errors.pincode} />
-          </div>
-
-          {/* Language */}
-          <div>
-            <label className="block font-medium mb-2">Preferred Language *</label>
-            <select
-              name="language"
-              value={formData.language}
-              onChange={handleChange}
-              className={`w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 ${
-                errors.language ? "border-red-500" : "border-gray-300"
-              }`}
-            >
-              <option value="">Select Language</option>
-              {languages.map((lang) => (
-                <option key={lang} value={lang}>
-                  {lang}
-                </option>
-              ))}
-            </select>
-            {errors.language && <p className="text-red-500 text-sm mt-1">{errors.language}</p>}
-          </div>
-
-          {/* Services - multi-select with checkboxes, using same list as book-service */}
-          <div>
-            <label className="block font-medium mb-2">Select Services *</label>
-            <div
-              className={`w-full border rounded-lg p-3 max-h-64 overflow-y-auto ${
-                errors.services ? "border-red-500" : "border-gray-300"
-              }`}
-            >
-              {serviceList
-                .filter((s) => s !== "Other")
-                .map((service) => {
-                  const checked = formData.services.includes(service);
-                  return (
-                    <label
-                      key={service}
-                      className="flex items-center gap-2 text-sm mb-2 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4"
-                        checked={checked}
-                        onChange={() => {
-                          const updated = checked
-                            ? formData.services.filter((s) => s !== service)
-                            : [...formData.services, service];
-                          setFormData({ ...formData, services: updated });
-                        }}
-                      />
-                      <span>{service}</span>
-                    </label>
-                  );
-                })}
-            </div>
-            <p className="text-gray-500 text-sm mt-1">
-              Tick all services you can provide.
-            </p>
-            {errors.services && (
-              <p className="text-red-500 text-sm mt-2">{errors.services}</p>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-          >
-            Register as Professional
-          </button>
-        </form>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Thank you!</h2>
+          <p className="text-gray-600 text-sm">
+            We&apos;ve received your details. Our team will get in touch with you shortly.
+          </p>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-/* Reusable Input Component */
-function Input({ label, name, value, onChange, error }) {
   return (
-    <div>
-      <label className="block font-medium mb-2">{label}</label>
-      <input
-        name={name}
-        value={value}
-        onChange={onChange}
-        className={`w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 ${
-          error ? "border-red-500" : "border-gray-300"
-        }`}
-      />
-      {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
+    <div className="min-h-screen bg-blue-50">
+      {/* Hero */}
+      <section id="register-form" className="max-w-6xl mx-auto px-4 py-12 sm:py-16 lg:py-20">
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+          <div>
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-blue-700 mb-4 leading-tight">
+              Join as a service professional
+            </h1>
+            <p className="text-gray-600 text-lg mb-2">
+              Start earning with PinkySreya. Connect with customers who need your skills—electricians, plumbers, carpenters, cleaners and more.
+            </p>
+            <p className="text-gray-500 text-sm sm:text-base">
+              Enter your number to get started. We&apos;ll guide you through the rest.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Mobile number
+                </label>
+                <input
+                  id="phone"
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="10-digit mobile number"
+                  value={phone}
+                  onChange={handlePhoneChange}
+                  maxLength={10}
+                  className={`w-full border rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
+                    error ? "border-red-500" : "border-gray-300"
+                  }`}
+                  autoComplete="tel"
+                />
+                {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
+              </div>
+              <div>
+                <label htmlFor="referralCode" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Referral code <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="referralCode"
+                  type="text"
+                  placeholder="Have a referral code?"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value.trim())}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold text-base hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {loading ? "Submitting…" : "Get started"}
+              </button>
+            </form>
+            <p className="text-gray-500 text-xs mt-4">
+              By continuing, you agree to our{" "}
+              <Link href="/terms-and-conditions" className="text-blue-600 hover:underline">Terms &amp; Conditions</Link>
+              {" "}and{" "}
+              <Link href="/privacy-policy" className="text-blue-600 hover:underline">Privacy Policy</Link>.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Why join PinkySreya */}
+      <section className="bg-white border-y border-blue-100 py-12 sm:py-16">
+        <div className="max-w-6xl mx-auto px-4">
+          <h2 className="text-2xl sm:text-3xl font-bold text-blue-700 text-center mb-10">
+            Why join PinkySreya?
+          </h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+            {[
+              {
+                icon: Wallet,
+                title: "Earn on your terms",
+                text: "Set your availability and get connected to customers in your area. More control, more flexibility.",
+              },
+              {
+                icon: ShieldCheck,
+                title: "Verified customers",
+                text: "We connect you with genuine customers looking for trusted professionals. No cold calls.",
+              },
+              {
+                icon: Clock,
+                title: "Flexible schedule",
+                text: "Choose when you want to work. Part-time or full-time—you decide how much you want to earn.",
+              },
+              {
+                icon: Bell,
+                title: "Direct requests",
+                text: "Receive booking requests and manage them from one place. Simple and transparent.",
+              },
+            ].map(({ icon: Icon, title, text }) => (
+              <div key={title} className="bg-blue-50/50 rounded-xl p-6 border border-blue-100">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mb-4">
+                  <Icon className="w-5 h-5 text-blue-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900 mb-2">{title}</h3>
+                <p className="text-gray-600 text-sm">{text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="max-w-6xl mx-auto px-4 py-12 sm:py-16">
+        <h2 className="text-2xl sm:text-3xl font-bold text-blue-700 text-center mb-10">
+          How it works
+        </h2>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          {[
+            { step: "1", icon: UserPlus, title: "Register", text: "Enter your mobile number and we&apos;ll get in touch to complete your profile." },
+            { step: "2", icon: FileCheck, title: "Get verified", text: "Share your skills and location. Our team verifies your details quickly." },
+            { step: "3", icon: Smartphone, title: "Receive requests", text: "Get booking requests from customers near you. Accept the ones that fit your schedule." },
+            { step: "4", icon: TrendingUp, title: "Earn", text: "Complete jobs, get paid, and grow your reputation. More jobs mean more earnings." },
+          ].map(({ step, icon: Icon, title, text }) => (
+            <div key={step} className="relative text-center">
+              <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center mx-auto mb-4 font-bold">
+                {step}
+              </div>
+              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mx-auto mb-3">
+                <Icon className="w-5 h-5 text-blue-600" />
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-2">{title}</h3>
+              <p className="text-gray-600 text-sm">{text}</p>
+              {step !== "4" && (
+                <div className="hidden lg:block absolute top-6 left-[60%] w-[80%] h-0.5 bg-blue-200" aria-hidden />
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
