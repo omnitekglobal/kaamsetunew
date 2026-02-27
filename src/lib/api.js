@@ -85,11 +85,32 @@ export async function getService(id) {
 
 // --- Bookings ---
 
-/** POST /api/bookings. Body: { name, email?, phone, service, pincode, language }. Returns { bookingId }. */
+/**
+ * POST /api/bookings.
+ * Body: { name, email?, phone, service, pincode, language }.
+ *
+ * Always hits the Next.js route /api/bookings on the same origin, so that:
+ * - In production, the server-side handler can proxy to the PHP API
+ *   (using API_URL) and/or fall back to local DB.
+ * - We avoid calling the PHP API directly from the browser, which can
+ *   break due to CORS or host-specific routing.
+ */
 export async function createBooking(body) {
-  const res = await apiFetch("/api/bookings", { method: "POST", body: JSON.stringify(body) });
-  console.log(res);
-  return res.data ?? res;
+  const path = "/api/bookings";
+  const url =
+    typeof window === "undefined" ? `${getAppUrl()}${path}` : path;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || `API error ${res.status}`);
+  }
+  return data.data ?? data;
 }
 
 /** GET /api/bookings/:id. Returns booking object. */
