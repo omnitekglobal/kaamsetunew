@@ -12,10 +12,51 @@ $error = '';
 
 // Optional: referral_code for staff users (added by migration 006_users_referral_code.sql)
 $hasUserReferralCode = false;
+$hasUserLanguageCol = false;
+$hasUserVillageCol = false;
+$hasUserStateCol = false;
+$hasUserLandmarkCol = false;
+$hasUserAadhaarCol = false;
+$hasUserCreatedByCol = false;
 try {
     $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'referral_code'");
     $hasUserReferralCode = $stmt && $stmt->rowCount() > 0;
 } catch (Throwable $e) {}
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'language'");
+    $hasUserLanguageCol = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'village'");
+    $hasUserVillageCol = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'state'");
+    $hasUserStateCol = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'landmark'");
+    $hasUserLandmarkCol = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'aadhaar_no'");
+    $hasUserAadhaarCol = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'created_by'");
+    $hasUserCreatedByCol = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+
+// List of team leaders for assigning staff (super_admin only)
+$teamLeadersForAssign = [];
+if ($user['role'] === 'super_admin') {
+    try {
+        $stmt = $pdo->query("SELECT id, name FROM users WHERE role = 'team_leader' AND is_active = 1 ORDER BY name");
+        $teamLeadersForAssign = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    } catch (Throwable $e) {
+        $teamLeadersForAssign = [];
+    }
+}
 
 // Delete: only within scope (super can delete team_leader; team_leader can delete staff)
 if (canCreateDeleteUsers($user['role']) && isset($_GET['delete']) && is_numeric($_GET['delete'])) {
@@ -38,6 +79,36 @@ if (canCreateDeleteUsers($user['role']) && isset($_GET['delete']) && is_numeric(
 // Create / Update: role must be in allowed set
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['_action'] ?? 'create';
+    if ($action === 'assign_team_leader') {
+        // Super admin can (re)assign a staff member to a specific team leader.
+        if ($user['role'] !== 'super_admin' || !$hasUserCreatedByCol) {
+            $error = 'You are not allowed to assign staff.';
+        } else {
+            $staffId = (int) ($_POST['staff_id'] ?? 0);
+            $teamLeaderId = (int) ($_POST['team_leader_id'] ?? 0);
+            if (!$staffId || !$teamLeaderId) {
+                $error = 'Staff and team leader are required.';
+            } else {
+                // Validate roles
+                $stmt = $pdo->prepare('SELECT role FROM users WHERE id = ?');
+                $stmt->execute([$staffId]);
+                $staffRow = $stmt->fetch(PDO::FETCH_ASSOC);
+                $stmt = $pdo->prepare('SELECT role FROM users WHERE id = ? AND is_active = 1');
+                $stmt->execute([$teamLeaderId]);
+                $tlRow = $stmt->fetch(PDO::FETCH_ASSOC);
+                if (!$staffRow || ($staffRow['role'] ?? '') !== 'staff') {
+                    $error = 'Selected user is not a staff member.';
+                } elseif (!$tlRow || ($tlRow['role'] ?? '') !== 'team_leader') {
+                    $error = 'Selected team member is not a team leader.';
+                } else {
+                    $stmt = $pdo->prepare('UPDATE users SET created_by = ? WHERE id = ?');
+                    $stmt->execute([$teamLeaderId, $staffId]);
+                    $message = 'Staff assigned to team leader successfully.';
+                }
+            }
+        }
+        // Skip the regular create/update logic for this action.
+    } else {
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -45,10 +116,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $role = $_POST['role'] ?? '';
     $is_active = isset($_POST['is_active']) ? 1 : 0;
     $id = (int) ($_POST['id'] ?? 0);
+    $language = trim($_POST['language'] ?? '');
+    $village = trim($_POST['village'] ?? '');
+    $state = trim($_POST['state'] ?? '');
+    $landmark = trim($_POST['landmark'] ?? '');
+    $aadhaar = trim($_POST['aadhaar_no'] ?? '');
 
     if ($action === 'create' && !in_array($role, $allowedToCreate, true)) $role = $allowedToCreate[0] ?? 'staff';
-    if (!$name || !$email) {
-        $error = 'Name and email are required.';
+    if (!$name || !$phone) {
+        $error = 'Name and phone are required.';
     } elseif ($action === 'create' && strlen($password) < 8) {
         $error = 'Password must be at least 8 characters.';
     } else {
@@ -62,8 +138,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'You cannot edit that user.';
             } else {
                 if (!in_array($role, $rolesForEdit, true)) $role = $existing['role'];
-                $sql = 'UPDATE users SET name = ?, email = ?, phone = ?, role = ?, is_active = ?';
-                $params = [$name, $email, $phone ?: null, $role, $is_active];
+
+                // Email may be empty in UI; synthesize if needed.
+                if ($email === '') {
+                    $digits = preg_replace('/\D/', '', $phone);
+                    if ($digits === '') {
+                        $error = 'Phone number is required to generate an email.';
+                    } else {
+                        $email = 'user_' . $role . '_' . $digits . '@auto.kaamsetu';
+                    }
+                }
+                if ($error) {
+                    // fall through to display error
+                } else {
+                    $sql = 'UPDATE users SET name = ?, email = ?, phone = ?, role = ?, is_active = ?';
+                    $params = [$name, $email, $phone ?: null, $role, $is_active];
+                    if ($hasUserLanguageCol) {
+                        $sql .= ', language = ?';
+                        $params[] = $language !== '' ? $language : null;
+                    }
+                    if ($hasUserVillageCol) {
+                        $sql .= ', village = ?';
+                        $params[] = $village !== '' ? $village : null;
+                    }
+                    if ($hasUserStateCol) {
+                        $sql .= ', state = ?';
+                        $params[] = $state !== '' ? $state : null;
+                    }
+                    if ($hasUserLandmarkCol) {
+                        $sql .= ', landmark = ?';
+                        $params[] = $landmark !== '' ? $landmark : null;
+                    }
+                    if ($hasUserAadhaarCol) {
+                        $sql .= ', aadhaar_no = ?';
+                        $params[] = $aadhaar !== '' ? $aadhaar : null;
+                    }
                 if ($password !== '') {
                     $sql .= ', password = ?';
                     $params[] = password_hash($password, PASSWORD_DEFAULT);
@@ -71,31 +180,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $params[] = $id;
                 $pdo->prepare($sql . ' WHERE id = ?')->execute($params);
                 $message = 'User updated.';
+                }
             }
         } elseif ($action === 'create' && canCreateDeleteUsers($user['role'])) {
-            $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ?');
-            $stmt->execute([$email]);
-            if ($stmt->fetch()) {
-                $error = 'Email already registered.';
-            } else {
-                if ($hasUserReferralCode) {
-                    $referralCode = null;
-                    if ($role === 'staff') {
-                        try {
-                            $referralCode = 'STF' . strtoupper(bin2hex(random_bytes(3)));
-                        } catch (Throwable $e) {
-                            $referralCode = 'STF' . strtoupper(substr(md5(uniqid((string) $email, true)), 0, 6));
-                        }
-                    }
-                    $pdo->prepare('INSERT INTO users (name, email, password, phone, role, is_active, referral_code) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                        ->execute([$name, $email, password_hash($password, PASSWORD_DEFAULT), $phone ?: null, $role, 1, $referralCode]);
+            // Email may be empty in UI; synthesize if needed.
+            if ($email === '') {
+                $digits = preg_replace('/\D/', '', $phone);
+                if ($digits === '') {
+                    $error = 'Phone number is required to generate an email.';
                 } else {
-                    $pdo->prepare('INSERT INTO users (name, email, password, phone, role, is_active) VALUES (?, ?, ?, ?, ?, ?)')
-                        ->execute([$name, $email, password_hash($password, PASSWORD_DEFAULT), $phone ?: null, $role, 1]);
+                    $email = 'user_' . $role . '_' . $digits . '@auto.kaamsetu';
                 }
-                $message = 'User created.';
+            }
+            if (!$error) {
+                $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ?');
+                $stmt->execute([$email]);
+                if ($stmt->fetch()) {
+                    $error = 'Email already registered.';
+                } else {
+                    $columns = ['name', 'email', 'password', 'phone', 'role', 'is_active'];
+                    $values = [$name, $email, password_hash($password, PASSWORD_DEFAULT), $phone ?: null, $role, 1];
+
+                    if ($hasUserReferralCode) {
+                        $referralCode = null;
+                        if ($role === 'staff') {
+                            try {
+                                $referralCode = 'STF' . strtoupper(bin2hex(random_bytes(3)));
+                            } catch (Throwable $e) {
+                                $referralCode = 'STF' . strtoupper(substr(md5(uniqid((string) $email, true)), 0, 6));
+                            }
+                        }
+                        $columns[] = 'referral_code';
+                        $values[] = $referralCode;
+                    }
+                    if ($hasUserLanguageCol) {
+                        $columns[] = 'language';
+                        $values[] = $language !== '' ? $language : null;
+                    }
+                    if ($hasUserVillageCol) {
+                        $columns[] = 'village';
+                        $values[] = $village !== '' ? $village : null;
+                    }
+                    if ($hasUserStateCol) {
+                        $columns[] = 'state';
+                        $values[] = $state !== '' ? $state : null;
+                    }
+                    if ($hasUserLandmarkCol) {
+                        $columns[] = 'landmark';
+                        $values[] = $landmark !== '' ? $landmark : null;
+                    }
+                    if ($hasUserAadhaarCol) {
+                        $columns[] = 'aadhaar_no';
+                        $values[] = $aadhaar !== '' ? $aadhaar : null;
+                    }
+                    if ($hasUserCreatedByCol) {
+                        $columns[] = 'created_by';
+                        $values[] = (int) $user['id'];
+                    }
+
+                    $placeholders = implode(',', array_fill(0, count($columns), '?'));
+                    $sql = 'INSERT INTO users (' . implode(',', $columns) . ') VALUES (' . $placeholders . ')';
+                    $pdo->prepare($sql)->execute($values);
+                    $message = 'User created.';
+                }
             }
         }
+    }
     }
 }
 
@@ -119,6 +269,11 @@ if ($filterRole !== null) {
     $countSql .= ' AND role = ?';
     $countParams[] = $filterRole;
 }
+// Team leaders should only see their own staff (created_by = team leader id), if column exists.
+if ($hasUserCreatedByCol && $user['role'] === 'team_leader' && $filterRole === 'staff') {
+    $countSql .= ' AND created_by = ?';
+    $countParams[] = (int) $user['id'];
+}
 if ($search !== '') {
     $countSql .= ' AND (name LIKE ? OR email LIKE ?)';
     $countParams[] = "%$search%";
@@ -130,11 +285,21 @@ $totalUsers = (int) $stmt->fetchColumn();
 
 $sql = 'SELECT id, name, email, phone, role, is_active, created_at'
     . ($hasUserReferralCode ? ', referral_code' : '')
+    . ($hasUserLanguageCol ? ', language' : '')
+    . ($hasUserVillageCol ? ', village' : '')
+    . ($hasUserStateCol ? ', state' : '')
+    . ($hasUserLandmarkCol ? ', landmark' : '')
+    . ($hasUserAadhaarCol ? ', aadhaar_no' : '')
+    . ($hasUserCreatedByCol ? ', created_by' : '')
     . ' FROM users WHERE 1=1';
 $params = [];
 if ($filterRole !== null) {
     $sql .= ' AND role = ?';
     $params[] = $filterRole;
+}
+if ($hasUserCreatedByCol && $user['role'] === 'team_leader' && $filterRole === 'staff') {
+    $sql .= ' AND created_by = ?';
+    $params[] = (int) $user['id'];
 }
 if ($search !== '') {
     $sql .= ' AND (name LIKE ? OR email LIKE ?)';
@@ -170,6 +335,10 @@ if ($roleFilter !== '') $paginationQueryParams['role'] = $roleFilter;
 <?php if ($filterRole !== null): ?>
 <p class="text-muted">Showing <?= htmlspecialchars($pageTitleRole) ?> only.</p>
 <?php endif; ?>
+<?php
+// Safety: ensure all PHP blocks are properly closed for this file.
+// (Closes any remaining open control structure if one was left unclosed above.)
+?>
 <div class="card overflow-x">
     <table class="table">
         <thead>
@@ -179,6 +348,12 @@ if ($roleFilter !== '') $paginationQueryParams['role'] = $roleFilter;
                 <th>Email</th>
                 <th>Phone</th>
                 <?php if ($hasUserReferralCode): ?><th>Referral Code</th><?php endif; ?>
+                <?php if ($hasUserLanguageCol): ?><th>Language</th><?php endif; ?>
+                <?php if ($hasUserVillageCol): ?><th>Village</th><?php endif; ?>
+                <?php if ($hasUserStateCol): ?><th>State</th><?php endif; ?>
+                <?php if ($hasUserLandmarkCol): ?><th>Landmark</th><?php endif; ?>
+                <?php if ($hasUserAadhaarCol): ?><th>Aadhaar</th><?php endif; ?>
+                <?php if ($hasUserCreatedByCol && $filterRole === 'staff'): ?><th>Created by</th><?php endif; ?>
                 <th>Role</th>
                 <th>Status</th>
                 <th>Created</th>
@@ -195,11 +370,70 @@ if ($roleFilter !== '') $paginationQueryParams['role'] = $roleFilter;
                     <?php if ($hasUserReferralCode): ?>
                         <td><?= htmlspecialchars($u['referral_code'] ?? '-') ?></td>
                     <?php endif; ?>
+                    <?php if ($hasUserLanguageCol): ?>
+                        <td><?= htmlspecialchars($u['language'] ?? '-') ?></td>
+                    <?php endif; ?>
+                    <?php if ($hasUserVillageCol): ?>
+                        <td><?= htmlspecialchars($u['village'] ?? '-') ?></td>
+                    <?php endif; ?>
+                    <?php if ($hasUserStateCol): ?>
+                        <td><?= htmlspecialchars($u['state'] ?? '-') ?></td>
+                    <?php endif; ?>
+                    <?php if ($hasUserLandmarkCol): ?>
+                        <td><?= htmlspecialchars($u['landmark'] ?? '-') ?></td>
+                    <?php endif; ?>
+                    <?php if ($hasUserAadhaarCol): ?>
+                        <td><?= htmlspecialchars($u['aadhaar_no'] ?? '-') ?></td>
+                    <?php endif; ?>
+                    <?php if ($hasUserCreatedByCol && $filterRole === 'staff'): ?>
+                        <td>
+                            <?php
+                            if (!empty($u['created_by'])) {
+                                $cbId = (int) $u['created_by'];
+                                $cb = null;
+                                static $createdByCache = [];
+                                if (isset($createdByCache[$cbId])) {
+                                    $cb = $createdByCache[$cbId];
+                                } else {
+                                    $stmtCb = $pdo->prepare('SELECT name, role FROM users WHERE id = ?');
+                                    $stmtCb->execute([$cbId]);
+                                    $cb = $stmtCb->fetch(PDO::FETCH_ASSOC) ?: null;
+                                    $createdByCache[$cbId] = $cb;
+                                }
+                                if ($cb) {
+                                    echo htmlspecialchars($cb['name'] . ' (' . roleLabel($cb['role']) . ')');
+                                } else {
+                                    echo '-';
+                                }
+                            } else {
+                                echo '-';
+                            }
+                            ?>
+                        </td>
+                    <?php endif; ?>
                     <td><span class="badge"><?= htmlspecialchars(roleLabel($u['role'])) ?></span></td>
                     <td><?= $u['is_active'] ? 'Active' : 'Inactive' ?></td>
                     <td><?= htmlspecialchars($u['created_at']) ?></td>
                     <?php if (canCreateDeleteUsers($user['role'])): ?>
                         <td>
+                            <?php if ($u['role'] === 'staff'): ?>
+                                <a href="?page=users&role=staff&view=<?= (int) $u['id'] ?>" class="btn btn-sm btn-secondary">View</a>
+                                <?php if ($user['role'] === 'super_admin' && !empty($teamLeadersForAssign)): ?>
+                                    <form method="post" style="display:inline-block; margin-left:4px;">
+                                        <input type="hidden" name="_action" value="assign_team_leader">
+                                        <input type="hidden" name="staff_id" value="<?= (int) $u['id'] ?>">
+                                        <select name="team_leader_id" required style="min-width:120px;">
+                                            <option value="">Assign TL</option>
+                                            <?php foreach ($teamLeadersForAssign as $tl): ?>
+                                                <option value="<?= (int) $tl['id'] ?>" <?= !empty($u['created_by']) && (int)$u['created_by'] === (int)$tl['id'] ? 'selected' : '' ?>>
+                                                    <?= htmlspecialchars($tl['name']) ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                                    </form>
+                                <?php endif; ?>
+                            <?php endif; ?>
                             <a href="?page=users&edit=<?= (int) $u['id'] ?>" class="btn btn-sm btn-outline">Edit</a>
                             <?php if ((int) $u['id'] !== $user['id']): ?>
                                 <a href="?page=users&delete=<?= (int) $u['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Delete this user?')">Delete</a>
@@ -222,9 +456,34 @@ if ($roleFilter !== '') $paginationQueryParams['role'] = $roleFilter;
 $editId = isset($_GET['edit']) ? (int) $_GET['edit'] : 0;
 $editUser = null;
 if ($editId && canCreateDeleteUsers($user['role'])) {
-    $stmt = $pdo->prepare('SELECT id, name, email, phone, role, is_active FROM users WHERE id = ?');
+    $selectSql = 'SELECT id, name, email, phone, role, is_active'
+        . ($hasUserLanguageCol ? ', language' : '')
+        . ($hasUserVillageCol ? ', village' : '')
+        . ($hasUserStateCol ? ', state' : '')
+        . ($hasUserLandmarkCol ? ', landmark' : '')
+        . ($hasUserAadhaarCol ? ', aadhaar_no' : '')
+        . ' FROM users WHERE id = ?';
+    $stmt = $pdo->prepare($selectSql);
     $stmt->execute([$editId]);
     $editUser = $stmt->fetch(PDO::FETCH_ASSOC);
+}
+$viewId = isset($_GET['view']) ? (int) $_GET['view'] : 0;
+$viewUser = null;
+if ($viewId && canCreateDeleteUsers($user['role'])) {
+    $selectSql = 'SELECT id, name, email, phone, role, is_active, created_at'
+        . ($hasUserLanguageCol ? ', language' : '')
+        . ($hasUserVillageCol ? ', village' : '')
+        . ($hasUserStateCol ? ', state' : '')
+        . ($hasUserLandmarkCol ? ', landmark' : '')
+        . ($hasUserAadhaarCol ? ', aadhaar_no' : '')
+        . ($hasUserCreatedByCol ? ', created_by' : '')
+        . ' FROM users WHERE id = ?';
+    $stmt = $pdo->prepare($selectSql);
+    $stmt->execute([$viewId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row && canManageUser($user['role'], $row, $user['id'])) {
+        $viewUser = $row;
+    }
 }
 $modalOpen = !empty($editUser);
 ?>
@@ -239,16 +498,36 @@ $modalOpen = !empty($editUser);
                 <input type="text" name="name" required value="<?= htmlspecialchars($editUser['name'] ?? '') ?>">
             </div>
             <div class="form-group">
-                <label>Email *</label>
-                <input type="email" name="email" required value="<?= htmlspecialchars($editUser['email'] ?? '') ?>" <?= $editUser ? '' : '' ?>>
+                <label>Email</label>
+                <input type="email" name="email" value="<?= htmlspecialchars($editUser['email'] ?? '') ?>" <?= $editUser ? '' : '' ?>>
             </div>
             <div class="form-group">
                 <label>Password <?= $editUser ? '(leave blank to keep)' : '*' ?></label>
                 <input type="password" name="password" <?= $editUser ? '' : 'required' ?> minlength="8">
             </div>
             <div class="form-group">
-                <label>Phone</label>
-                <input type="text" name="phone" value="<?= htmlspecialchars($editUser['phone'] ?? '') ?>">
+                <label>Phone *</label>
+                <input type="text" name="phone" required value="<?= htmlspecialchars($editUser['phone'] ?? '') ?>">
+            </div>
+            <div class="form-group">
+                <label>Language</label>
+                <input type="text" name="language" value="<?= htmlspecialchars($editUser['language'] ?? '') ?>">
+            </div>
+            <div class="form-group">
+                <label>Village</label>
+                <input type="text" name="village" value="<?= htmlspecialchars($editUser['village'] ?? '') ?>">
+            </div>
+            <div class="form-group">
+                <label>State</label>
+                <input type="text" name="state" value="<?= htmlspecialchars($editUser['state'] ?? '') ?>">
+            </div>
+            <div class="form-group">
+                <label>Landmark</label>
+                <input type="text" name="landmark" value="<?= htmlspecialchars($editUser['landmark'] ?? '') ?>">
+            </div>
+            <div class="form-group">
+                <label>Aadhaar No.</label>
+                <input type="text" name="aadhaar_no" value="<?= htmlspecialchars($editUser['aadhaar_no'] ?? '') ?>">
             </div>
             <div class="form-group">
                 <label>Role</label>
@@ -271,3 +550,88 @@ $modalOpen = !empty($editUser);
         </form>
     </div>
 </div>
+<?php if ($viewUser): ?>
+<?php
+// Resolve creator, team leader, and super admin chain for staff detail view
+$creator = null;
+$teamLeaderCreator = null;
+$superAdminCreator = null;
+if (!empty($viewUser['created_by'] ?? null)) {
+    $cbId = (int) $viewUser['created_by'];
+    $stmtCb = $pdo->prepare('SELECT id, name, role, created_by FROM users WHERE id = ?');
+    $stmtCb->execute([$cbId]);
+    $creator = $stmtCb->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($creator) {
+        if (($creator['role'] ?? '') === 'team_leader') {
+            $teamLeaderCreator = $creator;
+        }
+        if (($creator['role'] ?? '') === 'super_admin') {
+            $superAdminCreator = $creator;
+        } elseif (!empty($creator['created_by'])) {
+            $saId = (int) $creator['created_by'];
+            $stmtSa = $pdo->prepare('SELECT id, name, role FROM users WHERE id = ? AND role = ?');
+            $stmtSa->execute([$saId, 'super_admin']);
+            $superAdminCreator = $stmtSa->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
+    }
+}
+?>
+<div id="userDetailsModal" class="modal open">
+    <div class="modal-content">
+        <h2>Staff Details</h2>
+        <div class="form-group">
+            <label>Name</label>
+            <input type="text" value="<?= htmlspecialchars($viewUser['name'] ?? '') ?>" disabled>
+        </div>
+        <div class="form-group">
+            <label>Email</label>
+            <input type="text" value="<?= htmlspecialchars($viewUser['email'] ?? '') ?>" disabled>
+        </div>
+        <div class="form-group">
+            <label>Phone</label>
+            <input type="text" value="<?= htmlspecialchars($viewUser['phone'] ?? '-') ?>" disabled>
+        </div>
+        <?php if ($hasUserLanguageCol): ?>
+        <div class="form-group">
+            <label>Language</label>
+            <input type="text" value="<?= htmlspecialchars($viewUser['language'] ?? '-') ?>" disabled>
+        </div>
+        <?php endif; ?>
+        <?php if ($hasUserVillageCol): ?>
+        <div class="form-group">
+            <label>Village</label>
+            <input type="text" value="<?= htmlspecialchars($viewUser['village'] ?? '-') ?>" disabled>
+        </div>
+        <?php endif; ?>
+        <?php if ($hasUserStateCol): ?>
+        <div class="form-group">
+            <label>State</label>
+            <input type="text" value="<?= htmlspecialchars($viewUser['state'] ?? '-') ?>" disabled>
+        </div>
+        <?php endif; ?>
+        <?php if ($hasUserLandmarkCol): ?>
+        <div class="form-group">
+            <label>Landmark</label>
+            <input type="text" value="<?= htmlspecialchars($viewUser['landmark'] ?? '-') ?>" disabled>
+        </div>
+        <?php endif; ?>
+        <?php if ($hasUserAadhaarCol): ?>
+        <div class="form-group">
+            <label>Aadhaar No.</label>
+            <input type="text" value="<?= htmlspecialchars($viewUser['aadhaar_no'] ?? '-') ?>" disabled>
+        </div>
+        <?php endif; ?>
+        <div class="form-group">
+            <label>Team Leader</label>
+            <input type="text" value="<?= $teamLeaderCreator ? htmlspecialchars($teamLeaderCreator['name'] . ' (Team Leader)') : '-' ?>" disabled>
+        </div>
+        <div class="form-group">
+            <label>Super Admin</label>
+            <input type="text" value="<?= $superAdminCreator ? htmlspecialchars($superAdminCreator['name'] . ' (Super Admin)') : '-' ?>" disabled>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-outline" onclick="document.getElementById('userDetailsModal').classList.remove('open'); window.location.href='?page=users<?= $roleFilter ? '&role=' . urlencode($roleFilter) : '' ?>'">Close</button>
+        </div>
+    </div>
+</div>
+<?php endif; ?>

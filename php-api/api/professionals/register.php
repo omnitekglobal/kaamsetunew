@@ -11,12 +11,15 @@ $email = trim($input['email'] ?? '');
 $city = trim($input['city'] ?? '');
 $state = trim($input['state'] ?? '');
 $pincode = trim($input['pincode'] ?? '');
-$language = trim($input['language'] ?? '');
+$language = trim($input['language'] ?? ''); // now optional
+$village = trim($input['village'] ?? '');
+$landmark = trim($input['landmark'] ?? '');
+$aadhaar = trim($input['aadhaar_no'] ?? '');
 $services = $input['services'] ?? '';
 $referralCodeInput = trim($input['referral_code'] ?? '');
 
-if (!$name || !$phone || !$city || !$state || !$pincode || !$language || $services === '') {
-    jsonError('Name, phone, city, state, pincode, language and services are required', 400);
+if (!$name || !$phone || !$city || !$state || !$pincode || $services === '') {
+    jsonError('Name, phone, city, state, pincode and services are required', 400);
 }
 
 $professionalId = 'PR' . time();
@@ -35,6 +38,15 @@ try {
     $stmt = $pdo->prepare("SHOW COLUMNS FROM professionals LIKE 'referral_code'");
     $stmt->execute();
     $hasProfessionalReferralCode = $stmt->rowCount() > 0;
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM professionals LIKE 'village'");
+    $stmt->execute();
+    $hasVillageCol = $stmt->rowCount() > 0;
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM professionals LIKE 'landmark'");
+    $stmt->execute();
+    $hasLandmarkCol = $stmt->rowCount() > 0;
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM professionals LIKE 'aadhaar_no'");
+    $stmt->execute();
+    $hasAadhaarCol = $stmt->rowCount() > 0;
 
     // Resolve referral (staff or professional) to a user_id if provided.
     $referredByUserId = null;
@@ -62,7 +74,20 @@ try {
 
     // Build insert dynamically based on which columns exist.
     $columns = ['professionalId', 'name', 'phone', 'email', 'city', 'state', 'pincode', 'language', 'services'];
-    $values = [$professionalId, $name, $phone, $email ?: null, $city, $state, $pincode, $language, $servicesStr];
+    $values = [$professionalId, $name, $phone, $email ?: null, $city, $state, $pincode, $language !== '' ? $language : null, $servicesStr];
+
+    if ($hasVillageCol) {
+        $columns[] = 'village';
+        $values[] = $village !== '' ? $village : null;
+    }
+    if ($hasLandmarkCol) {
+        $columns[] = 'landmark';
+        $values[] = $landmark !== '' ? $landmark : null;
+    }
+    if ($hasAadhaarCol) {
+        $columns[] = 'aadhaar_no';
+        $values[] = $aadhaar !== '' ? $aadhaar : null;
+    }
 
     if ($hasStatus) {
         $columns[] = 'status';

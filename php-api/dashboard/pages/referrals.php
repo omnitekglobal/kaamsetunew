@@ -1,6 +1,6 @@
 <?php
 
-requireRole('super_admin', 'team_leader');
+$user = requireRole('super_admin', 'team_leader');
 $pdo = getDb();
 
 $message = '';
@@ -8,12 +8,17 @@ $error = '';
 
 // Ensure required columns exist
 $hasUserReferralCode = false;
+$hasUserCreatedByCol = false;
 $hasProReferredByUserId = false;
 $hasProReferralCode = false;
 
 try {
     $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'referral_code'");
     $hasUserReferralCode = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'created_by'");
+    $hasUserCreatedByCol = $stmt && $stmt->rowCount() > 0;
 } catch (Throwable $e) {}
 
 try {
@@ -30,26 +35,36 @@ if (!$hasUserReferralCode || !$hasProReferredByUserId) {
     $error = 'Referral tracking columns are missing. Ensure migrations 005_professionals_referral_code.sql and 006_users_referral_code.sql have been run.';
 }
 
+// Team leader sees only their assigned staff (and professionals referred by those staff)
+$scopeStaffOnly = ($user['role'] === 'team_leader' && $hasUserCreatedByCol);
+
 $staffRows = [];
 $proReferrers = [];
 
 if ($error === '') {
-    // Staff referral summary
+    // Staff referral summary (super_admin: all staff; team_leader: only staff where created_by = TL id)
     $sql = "SELECT u.id, u.name, u.email, u.phone, u.referral_code,
                    COUNT(p.professionalId) AS total_referred
             FROM users u
             LEFT JOIN professionals p ON p.referred_by_user_id = u.id
-            WHERE u.role = 'staff'
-            GROUP BY u.id, u.name, u.email, u.phone, u.referral_code
+            WHERE u.role = 'staff'";
+    $staffParams = [];
+    if ($scopeStaffOnly) {
+        $sql .= " AND u.created_by = ?";
+        $staffParams[] = (int) $user['id'];
+    }
+    $sql .= " GROUP BY u.id, u.name, u.email, u.phone, u.referral_code
             ORDER BY total_referred DESC, u.id DESC";
     try {
-        $stmt = $pdo->query($sql);
+        $stmt = $staffParams ? $pdo->prepare($sql) : $pdo->query($sql);
+        if ($staffParams) $stmt->execute($staffParams);
         $staffRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         $error = 'Failed to load staff referrals: ' . $e->getMessage();
     }
 
-    // Professional referral summary (professionals who have user_id and a referral_code)
+    // Professional referral summary: approved professionals with referral codes and how many they referred.
+    // Team leader: only professionals that were referred by their staff (referred_by_user_id in TL's staff).
     if ($error === '' && $hasProReferralCode) {
         $sql = "SELECT p.professionalId, p.name, p.phone, p.email, p.referral_code,
                        u.id AS user_id,
@@ -57,11 +72,17 @@ if ($error === '') {
                 FROM professionals p
                 JOIN users u ON p.user_id = u.id
                 LEFT JOIN professionals r ON r.referred_by_user_id = u.id
-                GROUP BY p.professionalId, p.name, p.phone, p.email, p.referral_code, u.id
-                HAVING p.referral_code IS NOT NULL
+                WHERE p.referral_code IS NOT NULL";
+        $proParams = [];
+        if ($scopeStaffOnly) {
+            $sql .= " AND p.referred_by_user_id IN (SELECT id FROM users WHERE role = 'staff' AND created_by = ?)";
+            $proParams[] = (int) $user['id'];
+        }
+        $sql .= " GROUP BY p.professionalId, p.name, p.phone, p.email, p.referral_code, u.id
                 ORDER BY total_referred DESC, p.professionalId DESC";
         try {
-            $stmt = $pdo->query($sql);
+            $stmt = $proParams ? $pdo->prepare($sql) : $pdo->query($sql);
+            if ($proParams) $stmt->execute($proParams);
             $proReferrers = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Throwable $e) {
             $error = 'Failed to load professional referrals: ' . $e->getMessage();
@@ -71,6 +92,9 @@ if ($error === '') {
 ?>
 <div class="page-header">
     <h1>Referral Management</h1>
+    <?php if ($scopeStaffOnly): ?>
+    <p class="text-muted small">Showing only staff assigned to you and professionals they referred.</p>
+    <?php endif; ?>
 </div>
 <?php if ($error): ?><div class="alert alert-error"><?= htmlspecialchars($error) ?></div><?php endif; ?>
 <?php if ($message): ?><div class="alert alert-success"><?= htmlspecialchars($message) ?></div><?php endif; ?>

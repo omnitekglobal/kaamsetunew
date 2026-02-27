@@ -42,6 +42,7 @@
         <?php endif; ?>
         <?php if (canAccessBookings($user['role'])): ?>
             <a href="<?= DASHBOARD_BASE ?>/index.php?page=bookings" class="nav-item <?= ($page ?? '') === 'bookings' ? 'active' : '' ?>">Bookings</a>
+            <a href="<?= DASHBOARD_BASE ?>/index.php?page=customers" class="nav-item <?= ($page ?? '') === 'customers' ? 'active' : '' ?>">Customers</a>
         <?php endif; ?>
         <?php if (canAccessProfessionals($user['role'])): ?>
             <a href="<?= DASHBOARD_BASE ?>/index.php?page=professionals" class="nav-item <?= ($page ?? '') === 'professionals' ? 'active' : '' ?>">Professionals</a>

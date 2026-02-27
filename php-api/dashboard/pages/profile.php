@@ -19,11 +19,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = trim($_POST['name'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
         $password = $_POST['password'] ?? '';
+        $language = trim($_POST['language'] ?? '');
+        $village = trim($_POST['village'] ?? '');
+        $state = trim($_POST['state'] ?? '');
+        $landmark = trim($_POST['landmark'] ?? '');
+        $aadhaar = trim($_POST['aadhaar_no'] ?? '');
         if (!$name) {
             $error = 'Name is required.';
         } else {
             $sql = 'UPDATE users SET name = ?, phone = ?';
             $params = [$name, $phone ?: null];
+            if ($hasUserReferralCode) {
+                // referral_code is immutable here
+            }
+            try {
+                $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'language'");
+                $hasLangCol = $colsStmt && $colsStmt->rowCount() > 0;
+            } catch (Throwable $e) { $hasLangCol = false; }
+            try {
+                $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'village'");
+                $hasVillageCol = $colsStmt && $colsStmt->rowCount() > 0;
+            } catch (Throwable $e) { $hasVillageCol = false; }
+            try {
+                $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'state'");
+                $hasStateCol = $colsStmt && $colsStmt->rowCount() > 0;
+            } catch (Throwable $e) { $hasStateCol = false; }
+            try {
+                $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'landmark'");
+                $hasLandmarkCol = $colsStmt && $colsStmt->rowCount() > 0;
+            } catch (Throwable $e) { $hasLandmarkCol = false; }
+            try {
+                $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'aadhaar_no'");
+                $hasAadhaarCol = $colsStmt && $colsStmt->rowCount() > 0;
+            } catch (Throwable $e) { $hasAadhaarCol = false; }
+
+            if ($hasLangCol) {
+                $sql .= ', language = ?';
+                $params[] = $language !== '' ? $language : null;
+            }
+            if ($hasVillageCol) {
+                $sql .= ', village = ?';
+                $params[] = $village !== '' ? $village : null;
+            }
+            if ($hasStateCol) {
+                $sql .= ', state = ?';
+                $params[] = $state !== '' ? $state : null;
+            }
+            if ($hasLandmarkCol) {
+                $sql .= ', landmark = ?';
+                $params[] = $landmark !== '' ? $landmark : null;
+            }
+            if ($hasAadhaarCol) {
+                $sql .= ', aadhaar_no = ?';
+                $params[] = $aadhaar !== '' ? $aadhaar : null;
+            }
             if ($password !== '') {
                 if (strlen($password) < 8) {
                     $error = 'Password must be at least 8 characters.';
@@ -118,9 +167,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$sql = 'SELECT id, name, email, phone, role, created_at'
-    . ($hasUserReferralCode ? ', referral_code' : '')
-    . ' FROM users WHERE id = ?';
+// Build SELECT dynamically so it works even if extra columns are not yet migrated.
+$hasLangCol = false;
+$hasVillageCol = false;
+$hasStateCol = false;
+$hasLandmarkCol = false;
+$hasAadhaarCol = false;
+try {
+    $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'language'");
+    $hasLangCol = $colsStmt && $colsStmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'village'");
+    $hasVillageCol = $colsStmt && $colsStmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'state'");
+    $hasStateCol = $colsStmt && $colsStmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'landmark'");
+    $hasLandmarkCol = $colsStmt && $colsStmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'aadhaar_no'");
+    $hasAadhaarCol = $colsStmt && $colsStmt->rowCount() > 0;
+} catch (Throwable $e) {}
+
+$extraCols = [];
+if ($hasUserReferralCode) $extraCols[] = 'referral_code';
+if ($hasLangCol) $extraCols[] = 'language';
+if ($hasVillageCol) $extraCols[] = 'village';
+if ($hasStateCol) $extraCols[] = 'state';
+if ($hasLandmarkCol) $extraCols[] = 'landmark';
+if ($hasAadhaarCol) $extraCols[] = 'aadhaar_no';
+
+$sql = 'SELECT id, name, email, phone, role, created_at';
+if (!empty($extraCols)) {
+    $sql .= ', ' . implode(', ', $extraCols);
+}
+$sql .= ' FROM users WHERE id = ?';
+
 $stmt = $pdo->prepare($sql);
 $stmt->execute([$user['id']]);
 $me = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -176,6 +263,26 @@ if ($pdo->query("SHOW TABLES LIKE 'professionals'")->rowCount() > 0) {
         <div class="form-group">
             <label>Phone</label>
             <input type="text" name="phone" value="<?= htmlspecialchars($me['phone'] ?? '') ?>">
+        </div>
+        <div class="form-group">
+            <label>Language</label>
+            <input type="text" name="language" value="<?= htmlspecialchars($me['language'] ?? '') ?>">
+        </div>
+        <div class="form-group">
+            <label>Village</label>
+            <input type="text" name="village" value="<?= htmlspecialchars($me['village'] ?? '') ?>">
+        </div>
+        <div class="form-group">
+            <label>State</label>
+            <input type="text" name="state" value="<?= htmlspecialchars($me['state'] ?? '') ?>">
+        </div>
+        <div class="form-group">
+            <label>Landmark</label>
+            <input type="text" name="landmark" value="<?= htmlspecialchars($me['landmark'] ?? '') ?>">
+        </div>
+        <div class="form-group">
+            <label>Aadhaar No.</label>
+            <input type="text" name="aadhaar_no" value="<?= htmlspecialchars($me['aadhaar_no'] ?? '') ?>">
         </div>
         <div class="form-group">
             <label>New password (leave blank to keep current)</label>

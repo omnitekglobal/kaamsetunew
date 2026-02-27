@@ -191,6 +191,13 @@ if ($tableExists) {
         if ($stmt && $stmt->rowCount() > 0) $orderCol = 'created_at';
         $where = '1=1';
         $params = [];
+
+        // Staff should see only professionals they brought in.
+        if (($user['role'] ?? '') === 'staff' && $hasReferredByUserIdColumn) {
+            $where = 'referred_by_user_id = ?';
+            $params[] = (int) $user['id'];
+        }
+
         if ($search !== '') {
             $cols = $pdo->query("SHOW COLUMNS FROM professionals")->fetchAll(PDO::FETCH_ASSOC);
             $searchableTypes = ['varchar', 'char', 'text', 'tinytext', 'mediumtext', 'longtext', 'enum'];

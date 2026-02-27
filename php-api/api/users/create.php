@@ -1,10 +1,10 @@
 <?php
 
-// Super can create team_leader; team_leader can create staff
+// Super can create super_admin or team_leader; team_leader can create staff
 $payload = requireAuth();
 $callerRole = $payload->role ?? 'end_user';
 $allowedRoles = [];
-if ($callerRole === 'super_admin') $allowedRoles = ['team_leader'];
+if ($callerRole === 'super_admin') $allowedRoles = ['super_admin', 'team_leader'];
 elseif ($callerRole === 'team_leader') $allowedRoles = ['staff'];
 else jsonError('Forbidden', 403);
 
@@ -21,9 +21,14 @@ $email = trim($input['email'] ?? '');
 $password = $input['password'] ?? '';
 $phone = trim($input['phone'] ?? '');
 $role = trim($input['role'] ?? $allowedRoles[0]);
+$language = trim($input['language'] ?? '');
+$village = trim($input['village'] ?? '');
+$state = trim($input['state'] ?? '');
+$landmark = trim($input['landmark'] ?? '');
+$aadhaar = trim($input['aadhaar_no'] ?? '');
 
-if (!$name || !$email || !$password) {
-    jsonError('Name, email and password are required');
+if (!$name || !$phone || !$password) {
+    jsonError('Name, phone and password are required');
 }
 
 if (!in_array($role, $allowedRoles, true)) {
@@ -32,6 +37,16 @@ if (!in_array($role, $allowedRoles, true)) {
 
 if (strlen($password) < 8) {
     jsonError('Password must be at least 8 characters');
+}
+
+// Email is optional in UI, but users.email is NOT NULL + UNIQUE in schema.
+// If email is empty, synthesize one from the phone so constraints are satisfied.
+if ($email === '') {
+    $digits = preg_replace('/\D/', '', $phone);
+    if ($digits === '') {
+        jsonError('Phone number is required to generate an email', 400);
+    }
+    $email = 'user_' . $role . '_' . $digits . '@auto.kaamsetu';
 }
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -45,7 +60,44 @@ if ($stmt->fetch()) {
     jsonError('Email already registered', 409);
 }
 
+// Optional extra profile fields
+$hasLanguageCol = false;
+$hasVillageCol = false;
+$hasStateCol = false;
+$hasLandmarkCol = false;
+$hasAadhaarCol = false;
+$hasCreatedByCol = false;
+try {
+    $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'language'");
+    $hasLanguageCol = $colsStmt && $colsStmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'village'");
+    $hasVillageCol = $colsStmt && $colsStmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'state'");
+    $hasStateCol = $colsStmt && $colsStmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'landmark'");
+    $hasLandmarkCol = $colsStmt && $colsStmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'aadhaar_no'");
+    $hasAadhaarCol = $colsStmt && $colsStmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $colsStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'created_by'");
+    $hasCreatedByCol = $colsStmt && $colsStmt->rowCount() > 0;
+} catch (Throwable $e) {}
+
 $hash = password_hash($password, PASSWORD_DEFAULT);
+
+// Build dynamic insert based on available columns
+$columns = ['name', 'email', 'password', 'phone', 'role'];
+$values = [$name, $email, $hash, $phone ?: null, $role];
+
 if ($hasUserReferralCode) {
     $referralCode = null;
     if ($role === 'staff') {
@@ -55,12 +107,39 @@ if ($hasUserReferralCode) {
             $referralCode = 'STF' . strtoupper(substr(md5(uniqid((string) $email, true)), 0, 6));
         }
     }
-    $stmt = $pdo->prepare('INSERT INTO users (name, email, password, phone, role, referral_code) VALUES (?, ?, ?, ?, ?, ?)');
-    $stmt->execute([$name, $email, $hash, $phone ?: null, $role, $referralCode]);
-} else {
-    $stmt = $pdo->prepare('INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, ?)');
-    $stmt->execute([$name, $email, $hash, $phone ?: null, $role]);
+    $columns[] = 'referral_code';
+    $values[] = $referralCode;
 }
+
+if ($hasLanguageCol) {
+    $columns[] = 'language';
+    $values[] = $language !== '' ? $language : null;
+}
+if ($hasVillageCol) {
+    $columns[] = 'village';
+    $values[] = $village !== '' ? $village : null;
+}
+if ($hasStateCol) {
+    $columns[] = 'state';
+    $values[] = $state !== '' ? $state : null;
+}
+if ($hasLandmarkCol) {
+    $columns[] = 'landmark';
+    $values[] = $landmark !== '' ? $landmark : null;
+}
+if ($hasAadhaarCol) {
+    $columns[] = 'aadhaar_no';
+    $values[] = $aadhaar !== '' ? $aadhaar : null;
+}
+if ($hasCreatedByCol) {
+    $columns[] = 'created_by';
+    $values[] = (int) ($payload->sub ?? 0) ?: null;
+}
+
+$placeholders = implode(',', array_fill(0, count($columns), '?'));
+$sql = 'INSERT INTO users (' . implode(',', $columns) . ') VALUES (' . $placeholders . ')';
+$stmt = $pdo->prepare($sql);
+$stmt->execute($values);
 $userId = (int) $pdo->lastInsertId();
 
 $stmt = $pdo->prepare('SELECT id, name, email, phone, role, is_active, created_at FROM users WHERE id = ?');

@@ -82,6 +82,7 @@ $routes = [
     'POST /api/bookings' => 'api/bookings/create.php',
     'GET /api/bookings/{id}' => 'api/bookings/read.php',
     'POST /api/professionals/register' => 'api/professionals/register.php',
+    'POST /api/professionals/request' => 'api/professionals/request.php',
     'GET /api/professionals/view/{id}' => 'api/professionals/view.php',
 ];
 

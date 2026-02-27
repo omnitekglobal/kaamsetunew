@@ -47,9 +47,9 @@ function canManageUser(string $managerRole, array $targetUser, int $managerId): 
     return ($targetUser['role'] ?? '') === $scope;
 }
 
-/** Roles the current user is allowed to create. Super can only create team_leader; team_leader can only create staff. */
+/** Roles the current user is allowed to create. Super can create super_admin or team_leader; team_leader can create staff. */
 function allowedRolesToCreate(string $role): array {
-    if ($role === 'super_admin') return ['team_leader'];
+    if ($role === 'super_admin') return ['super_admin', 'team_leader'];
     if ($role === 'team_leader') return ['staff'];
     return [];
 }

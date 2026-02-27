@@ -5,6 +5,8 @@ $pdo = getDb();
 
 $canAssign = in_array($user['role'], ['super_admin', 'team_leader', 'staff'], true);
 $isProfessional = ($user['role'] ?? '') === 'professional';
+$isStaff = ($user['role'] ?? '') === 'staff';
+$isTeamLeader = ($user['role'] ?? '') === 'team_leader';
 
 $message = '';
 $error = '';
@@ -12,6 +14,7 @@ $error = '';
 $tableExists = false;
 $hasStatusColumn = false;
 $hasAssignedColumn = false;
+$hasUserCreatedByCol = false;
 $logExists = false;
 try {
     $stmt = $pdo->query("SHOW TABLES LIKE 'bookings'");
@@ -22,6 +25,8 @@ try {
         $hasStatusColumn = in_array('status', $bookingCols, true);
         $hasAssignedColumn = in_array('assigned_to', $bookingCols, true);
     }
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'created_by'");
+    $hasUserCreatedByCol = $stmt && $stmt->rowCount() > 0;
     $logExists = $pdo->query("SHOW TABLES LIKE 'booking_log'")->rowCount() > 0;
 } catch (Throwable $e) {}
 
@@ -98,6 +103,33 @@ if ($tableExists) {
         if ($isProfessional && $hasAssignedColumn) {
             $where = 'assigned_to = ?';
             $params[] = $user['id'];
+        } elseif ($isTeamLeader && (in_array('created_by', $bookingCols ?? [], true) || in_array('assigned_by', $bookingCols ?? [], true))) {
+            // TL sees bookings created or assigned by themselves or their assigned staff.
+            $allowedUserIds = [(int) $user['id']];
+            if ($hasUserCreatedByCol) {
+                $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'staff' AND created_by = ?");
+                $stmt->execute([$user['id']]);
+                while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                    $allowedUserIds[] = (int) $row['id'];
+                }
+            }
+            $placeholders = implode(',', array_fill(0, count($allowedUserIds), '?'));
+            $where = "(created_by IN ($placeholders) OR assigned_by IN ($placeholders))";
+            $params = array_merge($allowedUserIds, $allowedUserIds);
+        } elseif ($isStaff) {
+            // Staff should see only bookings they created or assigned.
+            $parts = [];
+            if (in_array('created_by', $bookingCols ?? [], true)) {
+                $parts[] = 'created_by = ?';
+                $params[] = $user['id'];
+            }
+            if (in_array('assigned_by', $bookingCols ?? [], true)) {
+                $parts[] = 'assigned_by = ?';
+                $params[] = $user['id'];
+            }
+            if (!empty($parts)) {
+                $where = '(' . implode(' OR ', $parts) . ')';
+            }
         }
         if ($search !== '') {
             $where .= ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ? OR service LIKE ? OR bookingId LIKE ?)';
@@ -148,6 +180,10 @@ if (!empty($bookings)) {
     <h1>Bookings</h1>
     <?php if ($isProfessional): ?>
         <p class="text-muted">Showing bookings assigned to you.</p>
+    <?php elseif ($isTeamLeader): ?>
+        <p class="text-muted">Showing bookings created or assigned by you or your staff.</p>
+    <?php elseif ($isStaff): ?>
+        <p class="text-muted">Showing bookings you created or assigned.</p>
     <?php endif; ?>
 </div>
 <?php if ($message): ?><div class="alert alert-success"><?= $message ?></div><?php endif; ?>
