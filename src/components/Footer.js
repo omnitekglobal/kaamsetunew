@@ -48,16 +48,16 @@ export default function Footer() {
             <h3 className="font-semibold mb-4">Company</h3>
             <ul className="space-y-2 text-blue-100 text-sm">
               <li>
-                <Link href="#">About Us</Link>
+                <Link href="/about">About Us</Link>
               </li>
               <li>
-                <Link href="#">Privacy Policy</Link>
+                <Link href="/privacy-policy">Privacy Policy</Link>
               </li>
               <li>
-                <Link href="#">Terms & Conditions</Link>
+                <Link href="/terms-and-conditions">Terms &amp; Conditions</Link>
               </li>
               <li>
-                <Link href="#">Contact</Link>
+                <Link href="/contact">Contact</Link>
               </li>
             </ul>
           </div>
