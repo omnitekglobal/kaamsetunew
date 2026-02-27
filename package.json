@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "api": "cd php-api && php -S localhost:8000 router.php"
   },
   "dependencies": {
     "lucide-react": "^0.563.0",

@@ -121,17 +121,24 @@ export async function getBooking(bookingId) {
 
 // --- Professionals ---
 
-/** POST /api/professionals/request. Body: { phone, referral_code? }. First step: request to join as professional. */
+/** POST /api/professionals/request. Body: { phone, referral_code? }. First step: request to join as professional. Uses same-origin proxy to avoid CORS. */
 export async function requestProfessional(body) {
   const payload = { phone: body.phone };
   if (body.referral_code != null && String(body.referral_code).trim() !== "") {
     payload.referral_code = String(body.referral_code).trim();
   }
-  const res = await apiFetch("/api/professionals/request", {
+  const path = "/api/professionals/request";
+  const url = typeof window === "undefined" ? `${getAppUrl()}${path}` : path;
+  const res = await fetch(url, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return res.data ?? res;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || `API error ${res.status}`);
+  }
+  return data.data ?? data;
 }
 
 /** POST /api/professionals/register. Body: { name, phone, email?, city, state, pincode, language, services }. Returns { professionalId }. */
