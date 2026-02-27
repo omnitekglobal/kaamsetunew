@@ -2,24 +2,14 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { getServices, createBooking } from "@/lib/api";
-
-const FALLBACK_SERVICE_NAMES = [
-  "Electrician", "Plumber", "Carpenter", "Driver", "Barber", "AC Repair", "House Cleaning", "Painter",
-];
+import { createBooking } from "@/lib/api";
+import { useServiceList } from "@/lib/useServiceList";
 
 export default function BookingForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const selectedServiceFromURL = searchParams.get("service");
-  const [serviceList, setServiceList] = useState(FALLBACK_SERVICE_NAMES);
-  useEffect(() => {
-    getServices()
-      .then((list) => {
-        if (list?.length) setServiceList([...new Set(list.map((s) => s.name).filter(Boolean)), "Other"]);
-      })
-      .catch(() => {});
-  }, []);
+  const { serviceList } = useServiceList();
 
   const languages = [
     "Hindi",
@@ -131,12 +121,11 @@ export default function BookingForm() {
               className="w-full border border-gray-200 rounded-xl p-3 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
             >
               <option value="">Choose Service</option>
-              {serviceList.filter((s) => s !== "Other").map((service) => (
+              {serviceList.map((service) => (
                 <option key={service} value={service}>
                   {service}
                 </option>
               ))}
-              <option value="Other">Other</option>
             </select>
           </div>
 
