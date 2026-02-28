@@ -315,16 +315,29 @@ if ($pdo->query("SHOW TABLES LIKE 'professionals'")->rowCount() > 0) {
 <?php endif; ?>
 
 <?php if ($canReferProfessionals && $referralCode): ?>
+<?php $referralLink = (FRONTEND_URL !== '' ? FRONTEND_URL : '') . '/professional/register?ref=' . urlencode($referralCode); ?>
 <div class="card mt-2" style="max-width: 480px;">
     <h2 class="h5 mb-2">Refer New Professionals</h2>
     <p class="text-muted small mb-2">
-        Share this referral code with professionals you invite. When they sign up using this code,
-        they will be linked to your account.
+        Share your referral link. When someone clicks it, they go to the professional registration page
+        with your referral code pre-filled. They can also enter the code manually.
     </p>
+    <div class="form-group">
+        <label>Your referral link</label>
+        <?php if (FRONTEND_URL !== ''): ?>
+        <div class="flex gap-2" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <input type="text" id="referral-link-input" readonly value="<?= htmlspecialchars($referralLink) ?>" style="flex: 1; min-width: 0;" onclick="this.select();" />
+            <button type="button" class="btn btn-primary" id="copy-referral-link-btn">Copy link</button>
+        </div>
+        <small class="text-muted">Share this link (e.g. WhatsApp, SMS). Anyone who clicks it will see your code pre-filled on the register page.</small>
+        <?php else: ?>
+        <p class="text-muted small">Set <code>FRONTEND_URL</code> in your .env (e.g. <code>https://yourapp.com</code>) to show the referral link.</p>
+        <?php endif; ?>
+    </div>
     <div class="form-group">
         <label>Your referral code</label>
         <input type="text" readonly value="<?= htmlspecialchars($referralCode) ?>" onclick="this.select();" />
-        <small class="text-muted">Tap to select and copy.</small>
+        <small class="text-muted">They can also enter this code manually on the register page.</small>
     </div>
     <?php if ($totalReferredProfessionals !== null): ?>
         <p class="text-muted small">Total professionals referred: <strong><?= (int) $totalReferredProfessionals ?></strong></p>
@@ -373,5 +386,25 @@ if ($pdo->query("SHOW TABLES LIKE 'professionals'")->rowCount() > 0) {
             <button type="submit" class="btn btn-primary">Add Professional</button>
         </div>
     </form>
+    <script>
+    (function() {
+        var btn = document.getElementById('copy-referral-link-btn');
+        var input = document.getElementById('referral-link-input');
+        if (btn && input) {
+            btn.addEventListener('click', function() {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(input.value);
+                    btn.textContent = 'Copied!';
+                    setTimeout(function() { btn.textContent = 'Copy link'; }, 2000);
+                } else {
+                    input.select();
+                    document.execCommand('copy');
+                    btn.textContent = 'Copied!';
+                    setTimeout(function() { btn.textContent = 'Copy link'; }, 2000);
+                }
+            });
+        }
+    })();
+    </script>
 </div>
 <?php endif; ?>

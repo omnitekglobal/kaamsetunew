@@ -8,6 +8,7 @@ $error = '';
 $hasStatusColumn = false;
 $hasReferralCodeColumn = false;
 $hasReferredByUserIdColumn = false;
+$staffReferralCode = '';
 $professionals = [];
 $tableExists = false;
 
@@ -33,6 +34,16 @@ if ($tableExists) {
         $stmt = $pdo->query("SHOW COLUMNS FROM professionals LIKE 'referred_by_user_id'");
         $hasReferredByUserIdColumn = $stmt && $stmt->rowCount() > 0;
     } catch (Throwable $e) {}
+    // When staff adds professional, pre-fill their referral code in the form
+    if (isset($user) && ($user['role'] ?? '') === 'staff') {
+        $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'referral_code'");
+        if ($stmt && $stmt->rowCount() > 0) {
+            $stmt = $pdo->prepare('SELECT referral_code FROM users WHERE id = ?');
+            $stmt->execute([$user['id']]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            $staffReferralCode = trim($row['referral_code'] ?? '');
+        }
+    }
 }
 
 // Create professional directly from dashboard (super_admin, team_leader, staff).
@@ -61,42 +72,52 @@ if ($tableExists && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['creat
             $values[] = 'pending';
         }
 
-        // Referral tracking: when created by staff, attach a referral code and staff user id.
-        $referralCode = null;
+        // Referral tracking: use referral_code from form (staff's code auto-filled); resolve to referred_by_user_id. New professional's referral_code stays NULL until approval.
         $referredByUserId = null;
-        if (($hasReferralCodeColumn || $hasReferredByUserIdColumn) && isset($user) && ($user['role'] ?? '') === 'staff') {
-            if ($hasReferralCodeColumn) {
-                try {
-                    $referralCode = 'RF' . strtoupper(bin2hex(random_bytes(4)));
-                } catch (Throwable $e) {
-                    $referralCode = 'RF' . strtoupper(substr(md5(uniqid((string) ($user['id'] ?? ''), true)), 0, 8));
+        $formReferralCode = trim($_POST['referral_code'] ?? '');
+        if ($hasReferredByUserIdColumn && $formReferralCode !== '') {
+            // Resolve referral code: staff (users.referral_code) or professional (professionals.referral_code -> user_id)
+            $stmt = $pdo->prepare('SELECT id FROM users WHERE referral_code = ?');
+            $stmt->execute([$formReferralCode]);
+            $refUser = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($refUser) {
+                $referredByUserId = (int) $refUser['id'];
+            } else {
+                $stmt = $pdo->prepare('SELECT user_id FROM professionals WHERE referral_code = ? AND user_id IS NOT NULL');
+                $stmt->execute([$formReferralCode]);
+                $proRef = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($proRef && !empty($proRef['user_id'])) {
+                    $referredByUserId = (int) $proRef['user_id'];
+                } else {
+                    $error = 'Invalid referral code.';
                 }
             }
-            if ($hasReferredByUserIdColumn) {
-                $referredByUserId = (int) ($user['id'] ?? 0) ?: null;
-            }
         }
-
+        if ($error === '' && $hasReferredByUserIdColumn && $referredByUserId === null && isset($user) && ($user['role'] ?? '') === 'staff') {
+            // No code in form but staff: still attribute to this staff
+            $referredByUserId = (int) ($user['id'] ?? 0) ?: null;
+        }
         if ($hasReferralCodeColumn) {
             $columns[] = 'referral_code';
-            $values[] = $referralCode;
+            $values[] = null; // New professional gets own code on approval
         }
-
         if ($hasReferredByUserIdColumn) {
             $columns[] = 'referred_by_user_id';
             $values[] = $referredByUserId;
         }
 
-        $placeholders = implode(',', array_fill(0, count($columns), '?'));
-        $sql = 'INSERT INTO professionals (' . implode(',', $columns) . ') VALUES (' . $placeholders . ')';
-        try {
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($values);
-            $message = 'Professional added successfully.';
-            header('Location: ' . DASHBOARD_BASE . '/index.php?page=professionals&msg=' . urlencode($message));
-            exit;
-        } catch (Throwable $e) {
-            $error = 'Failed to add professional: ' . $e->getMessage();
+        if ($error === '') {
+            $placeholders = implode(',', array_fill(0, count($columns), '?'));
+            $sql = 'INSERT INTO professionals (' . implode(',', $columns) . ') VALUES (' . $placeholders . ')';
+            try {
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($values);
+                $message = 'Professional added successfully.';
+                header('Location: ' . DASHBOARD_BASE . '/index.php?page=professionals&msg=' . urlencode($message));
+                exit;
+            } catch (Throwable $e) {
+                $error = 'Failed to add professional: ' . $e->getMessage();
+            }
         }
     }
 }
@@ -265,6 +286,7 @@ $showActions = $hasStatusColumn && canApproveRejectProfessional($user['role']);
 <div class="modal" id="add-professional-modal" aria-hidden="true">
     <div class="modal-content">
         <h2>Add Professional</h2>
+        <p class="text-muted small"><?= $staffReferralCode !== '' ? 'Your referral code is pre-filled when you add a professional; others can enter a referral code manually.' : 'You can enter a referral code (e.g. staff or professional code) if needed.' ?></p>
         <form method="post" class="form-grid">
             <input type="hidden" name="create_professional" value="1">
             <div class="form-group">
@@ -299,6 +321,12 @@ $showActions = $hasStatusColumn && canApproveRejectProfessional($user['role']);
                 <label for="services">Services (comma separated) *</label>
                 <input type="text" name="services" id="services" placeholder="e.g. Plumbing, Electrical" required>
             </div>
+            <?php if ($hasReferralCodeColumn || $hasReferredByUserIdColumn): ?>
+            <div class="form-group">
+                <label for="referral_code">Referral code</label>
+                <input type="text" name="referral_code" id="referral_code" placeholder="Optional" value="<?= htmlspecialchars($staffReferralCode) ?>">
+            </div>
+            <?php endif; ?>
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Save Professional</button>
                 <button type="button" class="btn btn-secondary" id="close-add-professional">Cancel</button>

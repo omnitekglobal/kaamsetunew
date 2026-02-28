@@ -102,7 +102,7 @@ if ($error === '') {
 <?php if ($error === ''): ?>
 <div class="card mt-2">
     <h2 class="h5 mb-2">Staff Referral Codes</h2>
-    <p class="text-muted small">Each staff has a unique code. Use this to track professionals they onboarded.</p>
+    <p class="text-muted small">Each staff has a unique code and referral link. Anyone who clicks the link lands on professional/register with the code pre-filled.</p>
     <div class="table-wrap">
         <table class="table">
             <thead>
@@ -112,22 +112,25 @@ if ($error === '') {
                     <th>Email</th>
                     <th>Phone</th>
                     <th>Referral Code</th>
+                    <th>Referral Link</th>
                     <th>Total Professionals Referred</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($staffRows as $row): ?>
+                    <?php $code = $row['referral_code'] ?? ''; $staffLink = (FRONTEND_URL !== '' && $code !== '') ? FRONTEND_URL . '/professional/register?ref=' . urlencode($code) : ''; ?>
                     <tr>
                         <td><?= (int) $row['id'] ?></td>
                         <td><?= htmlspecialchars($row['name']) ?></td>
                         <td><?= htmlspecialchars($row['email']) ?></td>
                         <td><?= htmlspecialchars($row['phone'] ?? '-') ?></td>
-                        <td><code><?= htmlspecialchars($row['referral_code'] ?? '-') ?></code></td>
+                        <td><code><?= htmlspecialchars($code ?: '-') ?></code></td>
+                        <td><?php if ($staffLink): ?><a href="<?= htmlspecialchars($staffLink) ?>" target="_blank" rel="noopener">Open link</a><br><small class="text-muted" style="word-break: break-all;"><?= htmlspecialchars($staffLink) ?></small><?php else: ?>—<?php endif; ?></td>
                         <td><?= (int) $row['total_referred'] ?></td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($staffRows)): ?>
-                    <tr><td colspan="6" class="text-muted">No staff referrals found.</td></tr>
+                    <tr><td colspan="7" class="text-muted">No staff referrals found.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -137,7 +140,7 @@ if ($error === '') {
 <?php if ($hasProReferralCode): ?>
 <div class="card mt-2">
     <h2 class="h5 mb-2">Professional Referral Codes</h2>
-    <p class="text-muted small">Approved professionals with referral codes and how many professionals they referred.</p>
+    <p class="text-muted small">Approved professionals with referral codes and link. Anyone who clicks the link lands on professional/register with the code pre-filled.</p>
     <div class="table-wrap">
         <table class="table">
             <thead>
@@ -147,24 +150,27 @@ if ($error === '') {
                     <th>Phone</th>
                     <th>Email</th>
                     <th>Referral Code</th>
+                    <th>Referral Link</th>
                     <th>User ID</th>
                     <th>Total Professionals Referred</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($proReferrers as $row): ?>
+                    <?php $pCode = $row['referral_code'] ?? ''; $proLink = (FRONTEND_URL !== '' && $pCode !== '') ? FRONTEND_URL . '/professional/register?ref=' . urlencode($pCode) : ''; ?>
                     <tr>
                         <td><code><?= htmlspecialchars($row['professionalId']) ?></code></td>
                         <td><?= htmlspecialchars($row['name'] ?? '-') ?></td>
                         <td><?= htmlspecialchars($row['phone'] ?? '-') ?></td>
                         <td><?= htmlspecialchars($row['email'] ?? '-') ?></td>
-                        <td><code><?= htmlspecialchars($row['referral_code'] ?? '-') ?></code></td>
+                        <td><code><?= htmlspecialchars($pCode ?: '-') ?></code></td>
+                        <td><?php if ($proLink): ?><a href="<?= htmlspecialchars($proLink) ?>" target="_blank" rel="noopener">Open link</a><br><small class="text-muted" style="word-break: break-all;"><?= htmlspecialchars($proLink) ?></small><?php else: ?>—<?php endif; ?></td>
                         <td><?= (int) $row['user_id'] ?></td>
                         <td><?= (int) $row['total_referred'] ?></td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($proReferrers)): ?>
-                    <tr><td colspan="7" class="text-muted">No professional referrals found.</td></tr>
+                    <tr><td colspan="8" class="text-muted">No professional referrals found.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>

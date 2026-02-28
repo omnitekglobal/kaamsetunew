@@ -31,6 +31,7 @@ Separate REST API backend for KaamSetu (users, roles, categories, services). Use
    ```bash
    cp .env.example .env
    # Edit .env: DB_*, JWT_SECRET
+   # Optional: FRONTEND_URL=https://yourapp.com — used for referral links (Profile & Referrals pages)
    ```
 
 4. **Run**

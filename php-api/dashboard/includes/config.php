@@ -28,3 +28,5 @@ $dashboardBase = (strpos($reqPath, '/dashboard') === 0)
     : (rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/') ?: '');
 define('DASHBOARD_BASE', $dashboardBase);
 define('DASHBOARD_ROLES', ['super_admin', 'team_leader', 'staff', 'professional', 'end_user']);
+// Frontend app URL for referral links (e.g. https://yourapp.com). Set FRONTEND_URL in .env.
+define('FRONTEND_URL', rtrim($_ENV['FRONTEND_URL'] ?? '', '/'));

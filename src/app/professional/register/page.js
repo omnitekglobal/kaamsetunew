@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { requestProfessional } from "@/lib/api";
 import {
   Smartphone,
@@ -15,11 +16,21 @@ import {
 } from "lucide-react";
 
 export default function ProfessionalRegisterPage() {
+  const searchParams = useSearchParams();
+  const refFromUrl = useMemo(
+    () => searchParams.get("ref") || searchParams.get("referral") || "",
+    [searchParams]
+  );
   const [phone, setPhone] = useState("");
-  const [referralCode, setReferralCode] = useState("");
+  const [referralCode, setReferralCode] = useState(refFromUrl);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  // Keep referral code in sync with URL (e.g. when landing via referral link)
+  useEffect(() => {
+    if (refFromUrl) setReferralCode(refFromUrl);
+  }, [refFromUrl]);
 
   const handlePhoneChange = (e) => {
     const value = e.target.value.replace(/\D/g, "").slice(0, 10);
