@@ -750,6 +750,34 @@ body {
   gap: 0.75rem;
 }
 
+/* Add Professional (and similar) multi-column form */
+.add-professional-form-cols {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.add-professional-form-cols .form-grid-inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 1.5rem;
+  column-gap: 1.5rem;
+  row-gap: 0.1rem;
+}
+
+.add-professional-form-cols .form-group {
+  margin-bottom: 1.1rem;
+}
+
+.add-professional-form-cols .form-group-full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 560px) {
+  .add-professional-form-cols .form-grid-inner {
+    grid-template-columns: 1fr;
+  }
+}
+
 .text-muted { color: var(--gray-500); font-size: 0.85rem; }
 .small { font-size: 0.875rem; }
 .p-3 { padding: 1rem; }

@@ -203,39 +203,30 @@ if (isset($_GET['msg'])) $message = $_GET['msg'];
 <?php else: ?>
 <?php if ($canAddCustomer): ?>
 <?php
-$addCustomerProLink = (defined('FRONTEND_URL') && FRONTEND_URL !== '') ? FRONTEND_URL . '/professional/register?ref=' . urlencode($staffReferralCode) : '';
 $addCustomerBookLink = (defined('FRONTEND_URL') && FRONTEND_URL !== '') ? FRONTEND_URL . '/book-service?ref=' . urlencode($staffReferralCode) : '';
 ?>
 <div class="modal" id="add-customer-modal" aria-hidden="true">
     <div class="modal-content">
+        <?php if ($staffReferralCode !== ''): ?>
+        <div class="form-group" style="margin-bottom: 1rem;">
+            <label>Referral link</label>
+            <?php if ($addCustomerBookLink !== ''): ?>
+            <div class="flex gap-2" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="add-customer-referral-link" readonly value="<?= htmlspecialchars($addCustomerBookLink) ?>" style="flex: 1; min-width: 0;" onclick="this.select();">
+                <button type="button" class="btn btn-secondary" id="copy-add-customer-link">Copy</button>
+            </div>
+            <small class="text-muted">Share so customers can book a service with your referral.</small>
+            <?php else: ?>
+            <p class="text-muted small">Set <code>FRONTEND_URL</code> in .env to show your referral link.</p>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
         <h2>Add Customer</h2>
         <p class="text-muted small">Creates a customer record only. Bookings can be assigned to this customer later. Your referral is auto-filled when you add a customer.</p>
         <form method="post" class="form-grid">
             <input type="hidden" name="add_customer" value="1">
             <?php if ($staffReferralCode !== ''): ?>
             <input type="hidden" name="referral_code" value="<?= htmlspecialchars($staffReferralCode) ?>">
-            <div class="form-group">
-                <label>Professional referral link</label>
-                <?php if ($addCustomerProLink !== ''): ?>
-                <div class="flex gap-2" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                    <input type="text" id="add-customer-pro-link" readonly value="<?= htmlspecialchars($addCustomerProLink) ?>" style="flex: 1; min-width: 0;" onclick="this.select();">
-                    <button type="button" class="btn btn-secondary" id="copy-add-customer-pro-link">Copy</button>
-                </div>
-                <small class="text-muted">Share so others can register as professionals.</small>
-                <?php else: ?>
-                <p class="text-muted small">Set <code>FRONTEND_URL</code> in .env to show your referral link.</p>
-                <?php endif; ?>
-            </div>
-            <div class="form-group">
-                <label>Customer referral link</label>
-                <?php if ($addCustomerBookLink !== ''): ?>
-                <div class="flex gap-2" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                    <input type="text" id="add-customer-referral-link" readonly value="<?= htmlspecialchars($addCustomerBookLink) ?>" style="flex: 1; min-width: 0;" onclick="this.select();">
-                    <button type="button" class="btn btn-secondary" id="copy-add-customer-link">Copy</button>
-                </div>
-                <small class="text-muted">Share so customers can book a service with your referral.</small>
-                <?php endif; ?>
-            </div>
             <?php endif; ?>
             <div class="form-group">
                 <label for="cust_name">Name *</label>
@@ -295,20 +286,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             copyBtn.textContent = 'Copied!';
             setTimeout(function () { copyBtn.textContent = 'Copy'; }, 2000);
-        });
-    }
-    var copyProBtn = document.getElementById('copy-add-customer-pro-link');
-    var linkProInput = document.getElementById('add-customer-pro-link');
-    if (copyProBtn && linkProInput) {
-        copyProBtn.addEventListener('click', function () {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(linkProInput.value);
-            } else {
-                linkProInput.select();
-                document.execCommand('copy');
-            }
-            copyProBtn.textContent = 'Copied!';
-            setTimeout(function () { copyProBtn.textContent = 'Copy'; }, 2000);
         });
     }
 });

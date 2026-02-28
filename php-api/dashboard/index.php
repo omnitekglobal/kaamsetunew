@@ -17,6 +17,7 @@ if (canAccessBookings($user['role'])) {
     $allowedPages[] = 'customers';
 }
 if (canAccessProfessionals($user['role'])) $allowedPages[] = 'professionals';
+if (($user['role'] ?? '') === 'staff') $allowedPages[] = 'add_professional';
 if (in_array($user['role'], ['super_admin', 'team_leader'], true)) {
     $allowedPages[] = 'referrals';
 }
