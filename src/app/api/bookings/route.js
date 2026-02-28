@@ -46,7 +46,8 @@ export async function POST(req) {
   }
 
   try {
-    const url = `${base.replace(/\/$/, "")}/api/bookings`;
+    // Trailing slash avoids 301 redirect on production (redirect can drop POST body)
+    const url = `${base.replace(/\/$/, "")}/api/bookings/`;
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

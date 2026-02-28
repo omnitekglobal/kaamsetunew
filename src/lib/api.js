@@ -96,7 +96,8 @@ export async function getService(id) {
  *   break due to CORS or host-specific routing.
  */
 export async function createBooking(body) {
-  const path = "/api/bookings";
+  // Use trailing slash to avoid 301 redirect on production (redirect can turn POST into GET)
+  const path = "/api/bookings/";
   const base = getApiUrl();
   const url =
     typeof window === "undefined"
