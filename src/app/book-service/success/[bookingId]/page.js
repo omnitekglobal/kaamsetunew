@@ -7,16 +7,16 @@ const getApiUrl = () =>
 export default async function SuccessPage({ params }) {
   const { bookingId } = await params;
   let booking = null;
-  const base = getApiUrl();
 
-  if (base) {
+  // 1) Prefer same-origin /api/bookings/:id so the catch-all proxy forwards to PHP (works in prod)
+  const appBase = getAppUrl();
+  if (appBase && bookingId) {
     try {
-      const res = await fetch(`${base.replace(/\/$/, "")}/api/bookings/${encodeURIComponent(bookingId)}`, {
+      const res = await fetch(`${appBase.replace(/\/$/, "")}/api/bookings/${encodeURIComponent(bookingId)}`, {
         cache: "no-store",
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data) {
-        // PHP returns { success, message, data: row }; Next may return row directly
         const row = data.data ?? data;
         if (row && (row.bookingId || row.booking_id)) {
           booking = row;
@@ -27,17 +27,36 @@ export default async function SuccessPage({ params }) {
     }
   }
 
+  // 2) Direct PHP URL (e.g. when API is on another host and proxy not used)
   if (!booking && bookingId) {
-    try {
-      const appBase = getAppUrl();
-      if (appBase) {
-        const res = await fetch(`${appBase.replace(/\/$/, "")}/api/booking/${encodeURIComponent(bookingId)}`, {
+    const base = getApiUrl();
+    if (base) {
+      try {
+        const res = await fetch(`${base.replace(/\/$/, "")}/api/bookings/${encodeURIComponent(bookingId)}`, {
           cache: "no-store",
         });
         const data = await res.json().catch(() => null);
-        if (res.ok && data && typeof data === "object" && (data.bookingId || data.booking_id)) {
-          booking = data;
+        if (res.ok && data) {
+          const row = data.data ?? data;
+          if (row && (row.bookingId || row.booking_id)) {
+            booking = row;
+          }
         }
+      } catch (e) {
+        booking = null;
+      }
+    }
+  }
+
+  // 3) Local DB fallback (Next.js api/booking/[id] when no PHP)
+  if (!booking && bookingId && appBase) {
+    try {
+      const res = await fetch(`${appBase.replace(/\/$/, "")}/api/booking/${encodeURIComponent(bookingId)}`, {
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && typeof data === "object" && (data.bookingId || data.booking_id)) {
+        booking = data;
       }
     } catch (e) {
       booking = null;
