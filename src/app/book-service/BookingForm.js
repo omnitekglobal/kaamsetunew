@@ -9,6 +9,7 @@ export default function BookingForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const selectedServiceFromURL = searchParams.get("service");
+  const refFromUrl = searchParams.get("ref") || searchParams.get("referral") || "";
   const { serviceList } = useServiceList();
 
   const languages = [
@@ -33,6 +34,7 @@ export default function BookingForm() {
   });
 
   const [showCustomService, setShowCustomService] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (selectedServiceFromURL) {
@@ -77,19 +79,29 @@ export default function BookingForm() {
       alert("Please select or enter a service");
       return;
     }
+    setSubmitting(true);
     try {
-      const data = await createBooking({
+      const payload = {
         name: formData.name,
         email: formData.email || undefined,
         phone: formData.phone,
         pincode: formData.pincode,
         language: formData.language,
         service: service.trim(),
-      });
-      router.push(`/book-service/success/${data.bookingId}`);
+      };
+      if (refFromUrl) payload.referral_code = refFromUrl;
+      const data = await createBooking(payload);
+      const id = data?.bookingId ?? data?.data?.bookingId;
+      if (!id || String(id) === "undefined" || String(id) === "null") {
+        alert("Booking request failed: no booking ID received. Please try again or contact support.");
+        return;
+      }
+      router.push(`/book-service/success/${id}`);
     } catch (err) {
-      console.log(err);
-      alert(err.message || "Something went wrong");
+      console.error("Booking error", err);
+      alert(err?.message || "Booking failed. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -105,6 +117,11 @@ export default function BookingForm() {
           <p className="text-gray-500 mt-3">
             Fast • Reliable • Verified Professionals Near You
           </p>
+          {refFromUrl && (
+            <p className="mt-3 text-sm text-blue-600 font-medium">
+              Referral code: <code className="bg-blue-50 px-2 py-0.5 rounded">{refFromUrl}</code>
+            </p>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -212,9 +229,10 @@ export default function BookingForm() {
           {/* Button */}
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-lg shadow-lg hover:scale-[1.02] hover:shadow-xl transition-all duration-300"
+            disabled={submitting}
+            className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-lg shadow-lg hover:scale-[1.02] hover:shadow-xl transition-all duration-300 disabled:opacity-70 disabled:pointer-events-none"
           >
-            Submit Booking Request
+            {submitting ? "Submitting…" : "Submit Booking Request"}
           </button>
         </form>
       </div>

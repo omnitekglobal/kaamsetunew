@@ -64,9 +64,19 @@ export async function POST(req) {
       );
     }
 
-    const bookingId = data.data?.bookingId ?? data.bookingId ?? "KS" + Date.now();
+    const bookingId = data.data?.bookingId ?? data.bookingId;
+    if (!bookingId || typeof bookingId !== "string" || !bookingId.trim()) {
+      console.error("[api bookings proxy] PHP did not return bookingId", data);
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Booking API did not return a booking ID. Check PHP API and database.",
+        },
+        { status: 502 }
+      );
+    }
     return NextResponse.json(
-      { success: true, bookingId },
+      { success: true, bookingId: bookingId.trim() },
       { status: 201 }
     );
   } catch (err) {

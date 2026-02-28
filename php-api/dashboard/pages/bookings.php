@@ -15,6 +15,7 @@ $tableExists = false;
 $hasStatusColumn = false;
 $hasAssignedColumn = false;
 $hasUserCreatedByCol = false;
+$hasBookingReferralCode = false;
 $logExists = false;
 try {
     $stmt = $pdo->query("SHOW TABLES LIKE 'bookings'");
@@ -24,6 +25,7 @@ try {
         $bookingCols = $stmt->fetchAll(PDO::FETCH_COLUMN);
         $hasStatusColumn = in_array('status', $bookingCols, true);
         $hasAssignedColumn = in_array('assigned_to', $bookingCols, true);
+        $hasBookingReferralCode = in_array('referral_code', $bookingCols ?? [], true);
     }
     $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'created_by'");
     $hasUserCreatedByCol = $stmt && $stmt->rowCount() > 0;
@@ -103,8 +105,8 @@ if ($tableExists) {
         if ($isProfessional && $hasAssignedColumn) {
             $where = 'assigned_to = ?';
             $params[] = $user['id'];
-        } elseif ($isTeamLeader && (in_array('created_by', $bookingCols ?? [], true) || in_array('assigned_by', $bookingCols ?? [], true))) {
-            // TL sees bookings created or assigned by themselves or their assigned staff.
+        } elseif ($isTeamLeader && (in_array('created_by', $bookingCols ?? [], true) || in_array('assigned_by', $bookingCols ?? [], true) || $hasBookingReferralCode)) {
+            // TL sees bookings created or assigned by themselves or their staff, or with their/staff referral code.
             $allowedUserIds = [(int) $user['id']];
             if ($hasUserCreatedByCol) {
                 $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'staff' AND created_by = ?");
@@ -114,10 +116,21 @@ if ($tableExists) {
                 }
             }
             $placeholders = implode(',', array_fill(0, count($allowedUserIds), '?'));
-            $where = "(created_by IN ($placeholders) OR assigned_by IN ($placeholders))";
+            $where = "(created_by IN ($placeholders) OR assigned_by IN ($placeholders)";
             $params = array_merge($allowedUserIds, $allowedUserIds);
+            if ($hasBookingReferralCode && !empty($allowedUserIds)) {
+                $stmt = $pdo->prepare("SELECT TRIM(referral_code) AS rc FROM users WHERE id IN ($placeholders) AND referral_code IS NOT NULL AND TRIM(referral_code) != ''");
+                $stmt->execute($allowedUserIds);
+                $refCodes = array_values(array_unique(array_filter(array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'rc'))));
+                if (!empty($refCodes)) {
+                    $refPh = implode(',', array_fill(0, count($refCodes), '?'));
+                    $where .= " OR referral_code IN ($refPh)";
+                    $params = array_merge($params, $refCodes);
+                }
+            }
+            $where .= ')';
         } elseif ($isStaff) {
-            // Staff should see only bookings they created or assigned.
+            // Staff see bookings they created, assigned, or where referral_code = their code.
             $parts = [];
             if (in_array('created_by', $bookingCols ?? [], true)) {
                 $parts[] = 'created_by = ?';
@@ -126,6 +139,15 @@ if ($tableExists) {
             if (in_array('assigned_by', $bookingCols ?? [], true)) {
                 $parts[] = 'assigned_by = ?';
                 $params[] = $user['id'];
+            }
+            if ($hasBookingReferralCode) {
+                $stmt = $pdo->prepare('SELECT TRIM(referral_code) FROM users WHERE id = ? AND referral_code IS NOT NULL AND TRIM(referral_code) != ""');
+                $stmt->execute([$user['id']]);
+                $staffCode = $stmt->fetchColumn();
+                if ($staffCode !== false && $staffCode !== '') {
+                    $parts[] = 'referral_code = ?';
+                    $params[] = $staffCode;
+                }
             }
             if (!empty($parts)) {
                 $where = '(' . implode(' OR ', $parts) . ')';
@@ -181,9 +203,9 @@ if (!empty($bookings)) {
     <?php if ($isProfessional): ?>
         <p class="text-muted">Showing bookings assigned to you.</p>
     <?php elseif ($isTeamLeader): ?>
-        <p class="text-muted">Showing bookings created or assigned by you or your staff.</p>
+        <p class="text-muted">Showing bookings created or assigned by you or your staff, or with your team’s referral code.</p>
     <?php elseif ($isStaff): ?>
-        <p class="text-muted">Showing bookings you created or assigned.</p>
+        <p class="text-muted">Showing bookings you created, assigned, or with your referral code.</p>
     <?php endif; ?>
 </div>
 <?php if ($message): ?><div class="alert alert-success"><?= $message ?></div><?php endif; ?>
@@ -220,6 +242,7 @@ if (!empty($bookings)) {
                     <?php endif; ?>
                     <?php if (isset($bookings[0]['created_at'])): ?><th>Created at</th><?php endif; ?>
                     <?php if (isset($bookings[0]['created_by']) && !$isProfessional): ?><th>Created by</th><?php endif; ?>
+                    <?php if (!empty($hasBookingReferralCode)): ?><th>Referral</th><?php endif; ?>
                     <?php if ($canAssign && $hasAssignedColumn): ?><th>Actions</th><?php endif; ?>
                 </tr>
             </thead>
@@ -245,6 +268,7 @@ if (!empty($bookings)) {
                         <?php endif; ?>
                         <?php if (isset($bookings[0]['created_at'])): ?><td><?= htmlspecialchars($b['created_at'] ?? '-') ?></td><?php endif; ?>
                         <?php if (isset($bookings[0]['created_by']) && !$isProfessional): ?><td><?= htmlspecialchars($userNames[(int)($b['created_by'] ?? 0)] ?? '-') ?></td><?php endif; ?>
+                        <?php if (!empty($hasBookingReferralCode)): ?><td><code><?= htmlspecialchars($b['referral_code'] ?? '-') ?></code></td><?php endif; ?>
                         <?php if ($canAssign && $hasAssignedColumn): ?>
                             <td>
                                 <form method="post" style="display:inline;" onsubmit="return confirm('Assign this booking to the selected professional?');">

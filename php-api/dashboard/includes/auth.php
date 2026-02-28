@@ -54,9 +54,9 @@ function allowedRolesToCreate(string $role): array {
     return [];
 }
 
-/** Roles the current user can assign when editing a user. Super can set any role except super_admin. */
+/** Roles the current user can assign when editing a user. Super can set any role including super_admin. */
 function rolesEditableBy(string $role): array {
-    if ($role === 'super_admin') return ['team_leader', 'staff', 'professional', 'end_user'];
+    if ($role === 'super_admin') return ['super_admin', 'team_leader', 'staff', 'professional', 'end_user'];
     if ($role === 'team_leader') return ['staff'];
     return [];
 }

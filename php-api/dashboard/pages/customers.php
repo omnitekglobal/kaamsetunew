@@ -9,7 +9,7 @@ $error = '';
 $isProfessional = ($user['role'] ?? '') === 'professional';
 $isStaff = ($user['role'] ?? '') === 'staff';
 $isTeamLeader = ($user['role'] ?? '') === 'team_leader';
-$canAddCustomer = in_array($user['role'] ?? '', ['super_admin', 'team_leader', 'staff'], true);
+$canAddCustomer = ($user['role'] ?? '') === 'staff';
 
 $customersTableExists = false;
 $customerCols = [];
@@ -24,7 +24,7 @@ try {
     }
     $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'created_by'");
     $hasUserCreatedByCol = $stmt && $stmt->rowCount() > 0;
-    if ($isStaff && $canAddCustomer) {
+    if ($isStaff) {
         $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'referral_code'");
         if ($stmt && $stmt->rowCount() > 0) {
             $stmt = $pdo->prepare('SELECT referral_code FROM users WHERE id = ?');
@@ -36,6 +36,7 @@ try {
 } catch (Throwable $e) {}
 
 $hasCreatedByCol = in_array('created_by', $customerCols, true);
+$hasCustomerReferralCode = in_array('referral_code', $customerCols, true);
 
 // Add Customer: insert into customers table only. Bookings can be assigned to this customer later.
 if ($canAddCustomer && $customersTableExists && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_customer'])) {
@@ -46,7 +47,7 @@ if ($canAddCustomer && $customersTableExists && $_SERVER['REQUEST_METHOD'] === '
     $state = trim($_POST['state'] ?? '');
     $pincode = trim($_POST['pincode'] ?? '');
     $language = trim($_POST['language'] ?? '');
-    $referralCode = trim($_POST['referral_code'] ?? '');
+    $referralCode = $isStaff && $staffReferralCode !== '' ? $staffReferralCode : trim($_POST['referral_code'] ?? '');
     if ($name === '' || $phone === '') {
         $error = 'Name and phone are required.';
     } else {
@@ -89,7 +90,7 @@ if ($customersTableExists) {
     if ($isProfessional) {
         // Professionals don't create customers; show none or all depending on requirement. Show empty for professional.
         $where = '1=0';
-    } elseif ($isTeamLeader && $hasUserCreatedByCol) {
+    } elseif ($isTeamLeader && ($hasUserCreatedByCol || $hasCustomerReferralCode)) {
         $allowedUserIds = [(int) $user['id']];
         $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'staff' AND created_by = ?");
         $stmt->execute([$user['id']]);
@@ -99,9 +100,31 @@ if ($customersTableExists) {
         $placeholders = implode(',', array_fill(0, count($allowedUserIds), '?'));
         $where = "created_by IN ($placeholders)";
         $params = $allowedUserIds;
-    } elseif ($isStaff && $hasCreatedByCol) {
-        $where = 'created_by = ?';
-        $params[] = (int) $user['id'];
+        if ($hasCustomerReferralCode && !empty($allowedUserIds)) {
+            $stmt = $pdo->prepare("SELECT TRIM(referral_code) AS rc FROM users WHERE id IN ($placeholders) AND referral_code IS NOT NULL AND TRIM(referral_code) != ''");
+            $stmt->execute($allowedUserIds);
+            $refCodes = array_values(array_unique(array_filter(array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'rc'))));
+            if (!empty($refCodes)) {
+                $refPh = implode(',', array_fill(0, count($refCodes), '?'));
+                $where .= " OR referral_code IN ($refPh)";
+                $params = array_merge($params, $refCodes);
+            }
+        }
+        $where = "($where)";
+    } elseif ($isStaff) {
+        $parts = [];
+        $params = [];
+        if ($hasCreatedByCol) {
+            $parts[] = 'created_by = ?';
+            $params[] = (int) $user['id'];
+        }
+        if ($hasCustomerReferralCode && $staffReferralCode !== '') {
+            $parts[] = 'referral_code = ?';
+            $params[] = $staffReferralCode;
+        }
+        if (!empty($parts)) {
+            $where = '(' . implode(' OR ', $parts) . ')';
+        }
     }
 
     if ($search !== '') {
@@ -179,12 +202,41 @@ if (isset($_GET['msg'])) $message = $_GET['msg'];
 <div class="alert alert-warning">Customers table does not exist. Run migration: <code>database/migrations/014_customers_table.sql</code></div>
 <?php else: ?>
 <?php if ($canAddCustomer): ?>
+<?php
+$addCustomerProLink = (defined('FRONTEND_URL') && FRONTEND_URL !== '') ? FRONTEND_URL . '/professional/register?ref=' . urlencode($staffReferralCode) : '';
+$addCustomerBookLink = (defined('FRONTEND_URL') && FRONTEND_URL !== '') ? FRONTEND_URL . '/book-service?ref=' . urlencode($staffReferralCode) : '';
+?>
 <div class="modal" id="add-customer-modal" aria-hidden="true">
     <div class="modal-content">
         <h2>Add Customer</h2>
-        <p class="text-muted small">Creates a customer record only. Bookings can be assigned to this customer later. <?= $isStaff && $staffReferralCode !== '' ? 'Your referral code is pre-filled; others can enter a referral code manually.' : 'You can enter a referral code if needed.' ?></p>
+        <p class="text-muted small">Creates a customer record only. Bookings can be assigned to this customer later. Your referral is auto-filled when you add a customer.</p>
         <form method="post" class="form-grid">
             <input type="hidden" name="add_customer" value="1">
+            <?php if ($staffReferralCode !== ''): ?>
+            <input type="hidden" name="referral_code" value="<?= htmlspecialchars($staffReferralCode) ?>">
+            <div class="form-group">
+                <label>Professional referral link</label>
+                <?php if ($addCustomerProLink !== ''): ?>
+                <div class="flex gap-2" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                    <input type="text" id="add-customer-pro-link" readonly value="<?= htmlspecialchars($addCustomerProLink) ?>" style="flex: 1; min-width: 0;" onclick="this.select();">
+                    <button type="button" class="btn btn-secondary" id="copy-add-customer-pro-link">Copy</button>
+                </div>
+                <small class="text-muted">Share so others can register as professionals.</small>
+                <?php else: ?>
+                <p class="text-muted small">Set <code>FRONTEND_URL</code> in .env to show your referral link.</p>
+                <?php endif; ?>
+            </div>
+            <div class="form-group">
+                <label>Customer referral link</label>
+                <?php if ($addCustomerBookLink !== ''): ?>
+                <div class="flex gap-2" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                    <input type="text" id="add-customer-referral-link" readonly value="<?= htmlspecialchars($addCustomerBookLink) ?>" style="flex: 1; min-width: 0;" onclick="this.select();">
+                    <button type="button" class="btn btn-secondary" id="copy-add-customer-link">Copy</button>
+                </div>
+                <small class="text-muted">Share so customers can book a service with your referral.</small>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
             <div class="form-group">
                 <label for="cust_name">Name *</label>
                 <input type="text" name="name" id="cust_name" required>
@@ -213,10 +265,6 @@ if (isset($_GET['msg'])) $message = $_GET['msg'];
                 <label for="cust_language">Language</label>
                 <input type="text" name="language" id="cust_language" placeholder="e.g. Hindi, English">
             </div>
-            <div class="form-group">
-                <label for="cust_referral_code">Referral code</label>
-                <input type="text" name="referral_code" id="cust_referral_code" placeholder="Optional" value="<?= htmlspecialchars($staffReferralCode) ?>">
-            </div>
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Save Customer</button>
                 <button type="button" class="btn btn-secondary" id="close-add-customer">Cancel</button>
@@ -235,6 +283,34 @@ document.addEventListener('DOMContentLoaded', function () {
     openBtn.addEventListener('click', openModal);
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
     modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+    var copyBtn = document.getElementById('copy-add-customer-link');
+    var linkInput = document.getElementById('add-customer-referral-link');
+    if (copyBtn && linkInput) {
+        copyBtn.addEventListener('click', function () {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(linkInput.value);
+            } else {
+                linkInput.select();
+                document.execCommand('copy');
+            }
+            copyBtn.textContent = 'Copied!';
+            setTimeout(function () { copyBtn.textContent = 'Copy'; }, 2000);
+        });
+    }
+    var copyProBtn = document.getElementById('copy-add-customer-pro-link');
+    var linkProInput = document.getElementById('add-customer-pro-link');
+    if (copyProBtn && linkProInput) {
+        copyProBtn.addEventListener('click', function () {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(linkProInput.value);
+            } else {
+                linkProInput.select();
+                document.execCommand('copy');
+            }
+            copyProBtn.textContent = 'Copied!';
+            setTimeout(function () { copyProBtn.textContent = 'Copy'; }, 2000);
+        });
+    }
 });
 </script>
 <?php endif; ?>

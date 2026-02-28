@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { getAppUrl } from "@/lib/api";
 
-const getApiUrl = () => process.env.NEXT_PUBLIC_API_URL || "";
+const getApiUrl = () =>
+  process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "";
 
 export default async function SuccessPage({ params }) {
   const { bookingId } = await params;
@@ -13,8 +14,14 @@ export default async function SuccessPage({ params }) {
       const res = await fetch(`${base.replace(/\/$/, "")}/api/bookings/${encodeURIComponent(bookingId)}`, {
         cache: "no-store",
       });
-      const data = await res.json();
-      booking = data.data ?? data;
+      const data = await res.json().catch(() => null);
+      if (res.ok && data) {
+        // PHP returns { success, message, data: row }; Next may return row directly
+        const row = data.data ?? data;
+        if (row && (row.bookingId || row.booking_id)) {
+          booking = row;
+        }
+      }
     } catch (e) {
       booking = null;
     }
@@ -24,17 +31,32 @@ export default async function SuccessPage({ params }) {
     try {
       const appBase = getAppUrl();
       if (appBase) {
-        const res = await fetch(`${appBase}/api/booking/${encodeURIComponent(bookingId)}`, {
+        const res = await fetch(`${appBase.replace(/\/$/, "")}/api/booking/${encodeURIComponent(bookingId)}`, {
           cache: "no-store",
         });
-        if (res.ok) {
-          const row = await res.json();
-          booking = row && typeof row === "object" ? row : null;
+        const data = await res.json().catch(() => null);
+        if (res.ok && data && typeof data === "object" && (data.bookingId || data.booking_id)) {
+          booking = data;
         }
       }
     } catch (e) {
       booking = null;
     }
+  }
+
+  // Normalize keys (API may return bookingId or booking_id, etc.)
+  if (booking) {
+    booking = {
+      ...booking,
+      bookingId: booking.bookingId ?? booking.booking_id,
+      name: booking.name ?? "",
+      phone: booking.phone ?? "",
+      email: booking.email ?? "",
+      service: booking.service ?? "",
+      pincode: booking.pincode ?? "",
+      language: booking.language ?? "",
+      referral_code: booking.referral_code,
+    };
   }
 
   if (!booking) {
@@ -85,6 +107,12 @@ export default async function SuccessPage({ params }) {
             <span>Language</span>
             <span>{booking.language}</span>
           </div>
+          {booking.referral_code && (
+            <div className="flex justify-between">
+              <span>Referral</span>
+              <span>{booking.referral_code}</span>
+            </div>
+          )}
         </div>
         <div className="mt-8 flex gap-4">
           <Link href="/" className="flex-1 bg-blue-600 text-white py-3 rounded-lg text-center">

@@ -97,8 +97,13 @@ export async function getService(id) {
  */
 export async function createBooking(body) {
   const path = "/api/bookings";
+  const base = getApiUrl();
   const url =
-    typeof window === "undefined" ? `${getAppUrl()}${path}` : path;
+    typeof window === "undefined"
+      ? `${getAppUrl()}${path}`
+      : base
+        ? `${base.replace(/\/$/, "")}${path}`
+        : path;
 
   const res = await fetch(url, {
     method: "POST",
@@ -110,7 +115,10 @@ export async function createBooking(body) {
   if (!res.ok) {
     throw new Error(data.message || `API error ${res.status}`);
   }
-  return data.data ?? data;
+  const out = data.data ?? data;
+  const id = out?.bookingId ?? out?.booking_id ?? data.bookingId;
+  if (id) return { ...(typeof out === "object" && out ? out : {}), bookingId: id };
+  throw new Error(data.message || "Booking failed: no booking ID in response.");
 }
 
 /** GET /api/bookings/:id. Returns booking object. */

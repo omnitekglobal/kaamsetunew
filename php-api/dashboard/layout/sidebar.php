@@ -49,6 +49,8 @@
         <?php endif; ?>
         <?php if (in_array($user['role'], ['super_admin', 'team_leader'], true)): ?>
             <a href="<?= DASHBOARD_BASE ?>/index.php?page=referrals" class="nav-item <?= ($page ?? '') === 'referrals' ? 'active' : '' ?>">Referrals</a>
+        <?php endif; ?>
+        <?php if (in_array($user['role'], ['super_admin', 'team_leader', 'staff'], true)): ?>
             <a href="<?= DASHBOARD_BASE ?>/index.php?page=professional_requests" class="nav-item <?= ($page ?? '') === 'professional_requests' ? 'active' : '' ?>">Professional Requests</a>
         <?php endif; ?>
         <?php if (in_array($user['role'], ['super_admin', 'end_user', 'professional', 'staff'], true)): ?>

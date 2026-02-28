@@ -19,6 +19,7 @@ try {
         $bookingCols = $stmt ? $stmt->fetchAll(PDO::FETCH_COLUMN) : [];
         $hasBookingCreatedBy = in_array('created_by', $bookingCols, true);
         $hasBookingAssignedBy = in_array('assigned_by', $bookingCols, true);
+        $hasBookingReferralCode = in_array('referral_code', $bookingCols, true);
     }
     $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'created_by'");
     $hasUserCreatedByCol = $stmt && $stmt->rowCount() > 0;
@@ -27,6 +28,7 @@ try {
         $hasProReferredBy = $stmt && $stmt->rowCount() > 0;
     }
 } catch (Throwable $e) {}
+$hasBookingReferralCode = $hasBookingReferralCode ?? false;
 
 // TL's assigned staff ids (for scoping TL to their team only)
 $tlStaffIds = [];
@@ -75,12 +77,23 @@ if (table_exists($pdo, 'bookings')) {
         } else {
             $stats['bookings'] = 0;
         }
-    } elseif ($isTeamLeader && ($hasBookingCreatedBy || $hasBookingAssignedBy)) {
-        // TL: only bookings created/assigned by TL or their staff
+    } elseif ($isTeamLeader && ($hasBookingCreatedBy || $hasBookingAssignedBy || $hasBookingReferralCode)) {
+        // TL: bookings created/assigned by TL or their staff, or with team referral code
         $allowedUserIds = array_merge([(int) $user['id']], array_map('intval', $tlStaffIds));
         $placeholders = implode(',', array_fill(0, count($allowedUserIds), '?'));
-        $where = "(created_by IN ($placeholders) OR assigned_by IN ($placeholders))";
+        $where = "(created_by IN ($placeholders) OR assigned_by IN ($placeholders)";
         $params = array_merge($allowedUserIds, $allowedUserIds);
+        if ($hasBookingReferralCode && !empty($allowedUserIds)) {
+            $stmt = $pdo->prepare("SELECT TRIM(referral_code) AS rc FROM users WHERE id IN ($placeholders) AND referral_code IS NOT NULL AND TRIM(referral_code) != ''");
+            $stmt->execute($allowedUserIds);
+            $refCodes = array_values(array_unique(array_filter(array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'rc'))));
+            if (!empty($refCodes)) {
+                $refPh = implode(',', array_fill(0, count($refCodes), '?'));
+                $where .= " OR referral_code IN ($refPh)";
+                $params = array_merge($params, $refCodes);
+            }
+        }
+        $where .= ')';
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM bookings WHERE $where");
         $stmt->execute($params);
         $stats['bookings'] = (int) $stmt->fetchColumn();
@@ -94,6 +107,15 @@ if (table_exists($pdo, 'bookings')) {
         if ($hasBookingAssignedBy) {
             $parts[] = 'assigned_by = ?';
             $params[] = $user['id'];
+        }
+        if ($hasBookingReferralCode) {
+            $stmt = $pdo->prepare('SELECT TRIM(referral_code) FROM users WHERE id = ? AND referral_code IS NOT NULL AND TRIM(referral_code) != ""');
+            $stmt->execute([$user['id']]);
+            $staffCode = $stmt->fetchColumn();
+            if ($staffCode !== false && $staffCode !== '') {
+                $parts[] = 'referral_code = ?';
+                $params[] = $staffCode;
+            }
         }
         if (!empty($parts)) {
             $where = '(' . implode(' OR ', $parts) . ')';

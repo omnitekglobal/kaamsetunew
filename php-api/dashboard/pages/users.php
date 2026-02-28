@@ -108,6 +108,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         // Skip the regular create/update logic for this action.
+    } elseif ($action === 'change_role') {
+        // Quick change role from list (admin only, within scope).
+        if (!canCreateDeleteUsers($user['role'])) {
+            $error = 'You are not allowed to change user roles.';
+        } else {
+            $targetId = (int) ($_POST['user_id'] ?? 0);
+            $newRole = trim($_POST['role'] ?? '');
+            if (!$targetId || $newRole === '') {
+                $error = 'User and role are required.';
+            } elseif (!in_array($newRole, $rolesForEdit, true)) {
+                $error = 'You cannot assign that role.';
+            } else {
+                $stmt = $pdo->prepare('SELECT id, role FROM users WHERE id = ?');
+                $stmt->execute([$targetId]);
+                $target = $stmt->fetch(PDO::FETCH_ASSOC);
+                if (!$target) {
+                    $error = 'User not found.';
+                } elseif (!canManageUser($user['role'], $target, $user['id'])) {
+                    $error = 'You cannot change that user\'s role.';
+                } else {
+                    $pdo->prepare('UPDATE users SET role = ? WHERE id = ?')->execute([$newRole, $targetId]);
+                    $message = 'Role updated to ' . roleLabel($newRole) . '.';
+                }
+            }
+        }
     } else {
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
@@ -411,7 +436,21 @@ if ($roleFilter !== '') $paginationQueryParams['role'] = $roleFilter;
                             ?>
                         </td>
                     <?php endif; ?>
-                    <td><span class="badge"><?= htmlspecialchars(roleLabel($u['role'])) ?></span></td>
+                    <td>
+                        <?php if (canCreateDeleteUsers($user['role']) && canManageUser($user['role'], $u, $user['id'])): ?>
+                            <form method="post" style="display:inline;" class="change-role-form">
+                                <input type="hidden" name="_action" value="change_role">
+                                <input type="hidden" name="user_id" value="<?= (int) $u['id'] ?>">
+                                <select name="role" onchange="this.form.submit();" style="min-width:120px;">
+                                    <?php foreach ($rolesForEdit as $r): ?>
+                                        <option value="<?= htmlspecialchars($r) ?>" <?= ($u['role'] ?? '') === $r ? 'selected' : '' ?>><?= htmlspecialchars(roleLabel($r)) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </form>
+                        <?php else: ?>
+                            <span class="badge"><?= htmlspecialchars(roleLabel($u['role'])) ?></span>
+                        <?php endif; ?>
+                    </td>
                     <td><?= $u['is_active'] ? 'Active' : 'Inactive' ?></td>
                     <td><?= htmlspecialchars($u['created_at']) ?></td>
                     <?php if (canCreateDeleteUsers($user['role'])): ?>

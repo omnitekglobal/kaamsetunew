@@ -12,6 +12,19 @@ try {
     $hasUserReferralCode = $stmt && $stmt->rowCount() > 0;
 } catch (Throwable $e) {}
 
+// Services list for multi-select in Add Professional form
+$profileServicesList = [];
+try {
+    if ($pdo->query("SHOW TABLES LIKE 'services'")->rowCount() > 0) {
+        $orderCol = 'name';
+        if ($pdo->query("SHOW COLUMNS FROM services LIKE 'sort_order'")->rowCount() > 0) $orderCol = 'sort_order';
+        $stmt = $pdo->query("SHOW COLUMNS FROM services LIKE 'is_active'");
+        $whereActive = $stmt && $stmt->rowCount() > 0 ? ' WHERE is_active = 1' : '';
+        $stmt = $pdo->query("SELECT id, name FROM services" . $whereActive . " ORDER BY " . $orderCol . ", name");
+        $profileServicesList = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    }
+} catch (Throwable $e) {}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['_action'] ?? 'update_profile';
 
@@ -109,7 +122,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $state = trim($_POST['pro_state'] ?? '');
                 $pincode = trim($_POST['pro_pincode'] ?? '');
                 $language = trim($_POST['pro_language'] ?? '');
-                $services = trim($_POST['pro_services'] ?? '');
+                $servicesRaw = $_POST['pro_services'] ?? '';
+                $services = is_array($servicesRaw) ? implode(', ', array_map('trim', $servicesRaw)) : trim($servicesRaw);
 
                 if (!$name || !$phone || !$city || !$state || !$pincode || !$language || $services === '') {
                     $error = 'All fields except email are required for new professional.';
@@ -315,23 +329,35 @@ if ($pdo->query("SHOW TABLES LIKE 'professionals'")->rowCount() > 0) {
 <?php endif; ?>
 
 <?php if ($canReferProfessionals && $referralCode): ?>
-<?php $referralLink = (FRONTEND_URL !== '' ? FRONTEND_URL : '') . '/professional/register?ref=' . urlencode($referralCode); ?>
+<?php
+$referralLink = (FRONTEND_URL !== '' ? FRONTEND_URL : '') . '/professional/register?ref=' . urlencode($referralCode);
+$customerRefLink = (FRONTEND_URL !== '' ? FRONTEND_URL : '') . '/book-service?ref=' . urlencode($referralCode);
+?>
 <div class="card mt-2" style="max-width: 480px;">
-    <h2 class="h5 mb-2">Refer New Professionals</h2>
+    <h2 class="h5 mb-2">Referral links</h2>
     <p class="text-muted small mb-2">
-        Share your referral link. When someone clicks it, they go to the professional registration page
-        with your referral code pre-filled. They can also enter the code manually.
+        Share your links. Professional link: they register with your code pre-filled. Customer link: they book a service and the booking is linked to your referral.
     </p>
     <div class="form-group">
-        <label>Your referral link</label>
+        <label>Professional referral link</label>
         <?php if (FRONTEND_URL !== ''): ?>
         <div class="flex gap-2" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
             <input type="text" id="referral-link-input" readonly value="<?= htmlspecialchars($referralLink) ?>" style="flex: 1; min-width: 0;" onclick="this.select();" />
-            <button type="button" class="btn btn-primary" id="copy-referral-link-btn">Copy link</button>
+            <button type="button" class="btn btn-primary" id="copy-referral-link-btn">Copy</button>
         </div>
-        <small class="text-muted">Share this link (e.g. WhatsApp, SMS). Anyone who clicks it will see your code pre-filled on the register page.</small>
+        <small class="text-muted">Share so others can register as professionals (code pre-filled).</small>
         <?php else: ?>
         <p class="text-muted small">Set <code>FRONTEND_URL</code> in your .env (e.g. <code>https://yourapp.com</code>) to show the referral link.</p>
+        <?php endif; ?>
+    </div>
+    <div class="form-group">
+        <label>Customer referral link</label>
+        <?php if (FRONTEND_URL !== ''): ?>
+        <div class="flex gap-2" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <input type="text" id="customer-referral-link-input" readonly value="<?= htmlspecialchars($customerRefLink) ?>" style="flex: 1; min-width: 0;" onclick="this.select();" />
+            <button type="button" class="btn btn-secondary" id="copy-customer-referral-link-btn">Copy</button>
+        </div>
+        <small class="text-muted">Share so customers can book a service; the booking will be linked to your referral.</small>
         <?php endif; ?>
     </div>
     <div class="form-group">
@@ -379,8 +405,18 @@ if ($pdo->query("SHOW TABLES LIKE 'professionals'")->rowCount() > 0) {
             <input type="text" name="pro_language" required>
         </div>
         <div class="form-group">
-            <label>Services (comma separated) *</label>
+            <label>Services *</label>
+            <?php if (!empty($profileServicesList)): ?>
+            <select name="pro_services[]" class="js-services-multi" multiple required data-placeholder="Select services…">
+                <?php foreach ($profileServicesList as $svc): ?>
+                <option value="<?= htmlspecialchars($svc['name']) ?>"><?= htmlspecialchars($svc['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <small class="text-muted">Selected services appear as tags; click × to remove.</small>
+            <?php else: ?>
             <input type="text" name="pro_services" placeholder="e.g. Plumbing, Electrical" required>
+            <small class="text-muted">Add services in Categories &amp; Services to use multi-select here.</small>
+            <?php endif; ?>
         </div>
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Add Professional</button>
@@ -394,14 +430,26 @@ if ($pdo->query("SHOW TABLES LIKE 'professionals'")->rowCount() > 0) {
             btn.addEventListener('click', function() {
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(input.value);
-                    btn.textContent = 'Copied!';
-                    setTimeout(function() { btn.textContent = 'Copy link'; }, 2000);
                 } else {
                     input.select();
                     document.execCommand('copy');
-                    btn.textContent = 'Copied!';
-                    setTimeout(function() { btn.textContent = 'Copy link'; }, 2000);
                 }
+                btn.textContent = 'Copied!';
+                setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+            });
+        }
+        var customerBtn = document.getElementById('copy-customer-referral-link-btn');
+        var customerInput = document.getElementById('customer-referral-link-input');
+        if (customerBtn && customerInput) {
+            customerBtn.addEventListener('click', function() {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(customerInput.value);
+                } else {
+                    customerInput.select();
+                    document.execCommand('copy');
+                }
+                customerBtn.textContent = 'Copied!';
+                setTimeout(function() { customerBtn.textContent = 'Copy'; }, 2000);
             });
         }
     })();

@@ -1,4 +1,5 @@
 </main>
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
 (function() {
   var body = document.body;
@@ -26,6 +27,20 @@
       groupBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
   }
+  // Tom Select: multi-select with tag preview for services
+  document.querySelectorAll('.js-services-multi').forEach(function(el) {
+    if (typeof TomSelect !== 'undefined') {
+      new TomSelect(el, {
+        plugins: ['remove_button'],
+        placeholder: el.getAttribute('data-placeholder') || 'Select services…',
+        maxItems: null,
+        allowEmptyOption: false,
+        closeAfterSelect: false,
+        hideSelected: true,
+        create: false
+      });
+    }
+  });
 })();
 </script>
 </body>

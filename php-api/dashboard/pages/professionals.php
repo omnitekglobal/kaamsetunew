@@ -21,6 +21,18 @@ $professionalsPerPage = 20;
 $professionalsPage = max(1, (int) ($_GET['p'] ?? 1));
 $totalProfessionals = 0;
 
+$servicesList = [];
+try {
+    if ($pdo->query("SHOW TABLES LIKE 'services'")->rowCount() > 0) {
+        $orderCol = 'name';
+        if ($pdo->query("SHOW COLUMNS FROM services LIKE 'sort_order'")->rowCount() > 0) $orderCol = 'sort_order';
+        $stmt = $pdo->query("SHOW COLUMNS FROM services LIKE 'is_active'");
+        $whereActive = $stmt && $stmt->rowCount() > 0 ? ' WHERE is_active = 1' : '';
+        $stmt = $pdo->query("SELECT id, name FROM services" . $whereActive . " ORDER BY " . $orderCol . ", name");
+        $servicesList = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    }
+} catch (Throwable $e) {}
+
 if ($tableExists) {
     try {
         $stmt = $pdo->query("SHOW COLUMNS FROM professionals LIKE 'status'");
@@ -46,8 +58,8 @@ if ($tableExists) {
     }
 }
 
-// Create professional directly from dashboard (super_admin, team_leader, staff).
-if ($tableExists && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_professional'])) {
+// Create professional directly from dashboard — only staff can add.
+if ($tableExists && ($user['role'] ?? '') === 'staff' && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_professional'])) {
     $name = trim($_POST['name'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
     $email = trim($_POST['email'] ?? '');
@@ -55,7 +67,8 @@ if ($tableExists && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['creat
     $state = trim($_POST['state'] ?? '');
     $pincode = trim($_POST['pincode'] ?? '');
     $language = trim($_POST['language'] ?? '');
-    $services = trim($_POST['services'] ?? '');
+    $servicesRaw = $_POST['services'] ?? '';
+    $services = is_array($servicesRaw) ? implode(', ', array_map('trim', $servicesRaw)) : trim($servicesRaw);
 
     if ($name === '' || $phone === '' || $city === '' || $state === '' || $pincode === '' || $language === '' || $services === '') {
         $error = 'All fields except email are required.';
@@ -72,7 +85,7 @@ if ($tableExists && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['creat
             $values[] = 'pending';
         }
 
-        // Referral tracking: use referral_code from form (staff's code auto-filled); resolve to referred_by_user_id. New professional's referral_code stays NULL until approval.
+        // Referral tracking: staff's code is sent hidden; resolve to referred_by_user_id.
         $referredByUserId = null;
         $formReferralCode = trim($_POST['referral_code'] ?? '');
         if ($hasReferredByUserIdColumn && $formReferralCode !== '') {
@@ -263,7 +276,7 @@ $showActions = $hasStatusColumn && canApproveRejectProfessional($user['role']);
 ?>
 <div class="page-header">
     <h1>Professionals</h1>
-    <?php if ($tableExists): ?>
+    <?php if ($tableExists && ($user['role'] ?? '') === 'staff'): ?>
         <button type="button" class="btn btn-primary" id="open-add-professional">Add Professional</button>
     <?php endif; ?>
 </div>
@@ -282,13 +295,31 @@ $showActions = $hasStatusColumn && canApproveRejectProfessional($user['role']);
     <input type="text" name="search" placeholder="Search any column (name, phone, email, city, state, pincode, language, services, status, ID…)" value="<?= htmlspecialchars($search) ?>">
     <button type="submit" class="btn btn-secondary">Search</button>
 </form>
-<?php if ($tableExists): ?>
+<?php if ($tableExists && ($user['role'] ?? '') === 'staff'): ?>
+<?php
+$professionalReferralLink = (defined('FRONTEND_URL') && FRONTEND_URL !== '') ? FRONTEND_URL . '/professional/register?ref=' . urlencode($staffReferralCode) : '';
+?>
 <div class="modal" id="add-professional-modal" aria-hidden="true">
     <div class="modal-content">
         <h2>Add Professional</h2>
-        <p class="text-muted small"><?= $staffReferralCode !== '' ? 'Your referral code is pre-filled when you add a professional; others can enter a referral code manually.' : 'You can enter a referral code (e.g. staff or professional code) if needed.' ?></p>
+        <p class="text-muted small">Your referral is auto-filled when you add a professional (hidden). Share your professional link so others can register with your referral.</p>
         <form method="post" class="form-grid">
             <input type="hidden" name="create_professional" value="1">
+            <?php if ($staffReferralCode !== ''): ?>
+            <input type="hidden" name="referral_code" value="<?= htmlspecialchars($staffReferralCode) ?>">
+            <div class="form-group">
+                <label>Professional referral link</label>
+                <?php if ($professionalReferralLink !== ''): ?>
+                <div class="flex gap-2" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                    <input type="text" id="add-pro-referral-link" readonly value="<?= htmlspecialchars($professionalReferralLink) ?>" style="flex: 1; min-width: 0;" onclick="this.select();">
+                    <button type="button" class="btn btn-secondary" id="copy-add-pro-link">Copy</button>
+                </div>
+                <small class="text-muted">Share so others can register as professionals.</small>
+                <?php else: ?>
+                <p class="text-muted small">Set <code>FRONTEND_URL</code> in .env to show your referral link.</p>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
             <div class="form-group">
                 <label for="name">Name *</label>
                 <input type="text" name="name" id="name" required>
@@ -318,15 +349,19 @@ $showActions = $hasStatusColumn && canApproveRejectProfessional($user['role']);
                 <input type="text" name="language" id="language" required>
             </div>
             <div class="form-group">
-                <label for="services">Services (comma separated) *</label>
+                <label for="services">Services *</label>
+                <?php if (!empty($servicesList)): ?>
+                <select name="services[]" id="services" class="js-services-multi" multiple required data-placeholder="Select services…">
+                    <?php foreach ($servicesList as $svc): ?>
+                    <option value="<?= htmlspecialchars($svc['name']) ?>"><?= htmlspecialchars($svc['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <small class="text-muted">Selected services appear as tags; click × to remove.</small>
+                <?php else: ?>
                 <input type="text" name="services" id="services" placeholder="e.g. Plumbing, Electrical" required>
+                <small class="text-muted">Add services in Categories &amp; Services to use multi-select here.</small>
+                <?php endif; ?>
             </div>
-            <?php if ($hasReferralCodeColumn || $hasReferredByUserIdColumn): ?>
-            <div class="form-group">
-                <label for="referral_code">Referral code</label>
-                <input type="text" name="referral_code" id="referral_code" placeholder="Optional" value="<?= htmlspecialchars($staffReferralCode) ?>">
-            </div>
-            <?php endif; ?>
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Save Professional</button>
                 <button type="button" class="btn btn-secondary" id="close-add-professional">Cancel</button>
@@ -357,6 +392,21 @@ document.addEventListener('DOMContentLoaded', function () {
             closeModal();
         }
     });
+
+    var copyProBtn = document.getElementById('copy-add-pro-link');
+    var linkProInput = document.getElementById('add-pro-referral-link');
+    if (copyProBtn && linkProInput) {
+        copyProBtn.addEventListener('click', function () {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(linkProInput.value);
+            } else {
+                linkProInput.select();
+                document.execCommand('copy');
+            }
+            copyProBtn.textContent = 'Copied!';
+            setTimeout(function () { copyProBtn.textContent = 'Copy'; }, 2000);
+        });
+    }
 });
 </script>
 <?php endif; ?>

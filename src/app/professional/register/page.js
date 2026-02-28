@@ -117,6 +117,11 @@ function RegisterForm() {
                 />
                 {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
               </div>
+              {refFromUrl && (
+                <p className="text-sm text-blue-600 font-medium">
+                  Using referral code: <code className="bg-blue-50 px-2 py-0.5 rounded">{refFromUrl}</code>
+                </p>
+              )}
               <div>
                 <label htmlFor="referralCode" className="block text-sm font-medium text-gray-700 mb-1.5">
                   Referral code <span className="text-gray-400 font-normal">(optional)</span>
