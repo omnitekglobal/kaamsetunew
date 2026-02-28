@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { requestProfessional } from "@/lib/api";
@@ -15,7 +15,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-export default function ProfessionalRegisterPage() {
+function RegisterForm() {
   const searchParams = useSearchParams();
   const refFromUrl = useMemo(
     () => searchParams.get("ref") || searchParams.get("referral") || "",
@@ -218,5 +218,35 @@ export default function ProfessionalRegisterPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function RegisterFormFallback() {
+  return (
+    <div className="min-h-screen bg-blue-50">
+      <section className="max-w-6xl mx-auto px-4 py-12 sm:py-16 lg:py-20">
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+          <div>
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-blue-700 mb-4 leading-tight">
+              Join as a service professional
+            </h1>
+            <p className="text-gray-600 text-lg mb-2">Start earning with PinkySreya.</p>
+          </div>
+          <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 animate-pulse">
+            <div className="h-12 bg-gray-200 rounded-lg mb-5" />
+            <div className="h-12 bg-gray-200 rounded-lg mb-5" />
+            <div className="h-12 bg-blue-200 rounded-lg" />
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export default function ProfessionalRegisterPage() {
+  return (
+    <Suspense fallback={<RegisterFormFallback />}>
+      <RegisterForm />
+    </Suspense>
   );
 }
