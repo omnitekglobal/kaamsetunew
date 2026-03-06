@@ -167,6 +167,22 @@ export async function getProfessional(professionalId) {
   return res.data ?? res;
 }
 
+// --- Blogs (for marketing / SEO content) ---
+
+/** GET /api/blogs. Returns array of { id, slug, title, excerpt, body?, cover_image_url?, published_at }. */
+export async function getBlogs() {
+  const res = await apiFetch("/api/blogs");
+  const items = res.data?.items ?? res.items ?? res.data ?? res;
+  return Array.isArray(items) ? items : [];
+}
+
+/** GET /api/blogs/:slug. Returns a single blog post object. */
+export async function getBlog(slugOrId) {
+  const key = encodeURIComponent(slugOrId);
+  const res = await apiFetch(`/api/blogs/${key}`);
+  return res.data ?? res;
+}
+
 // --- Auth (for future dashboard or app login) ---
 
 /** POST /api/auth/login. Body: { phone, password }. Returns { user, token, expires_in }. */

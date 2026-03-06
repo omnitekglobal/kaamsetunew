@@ -27,6 +27,12 @@ export default function HeroSection() {
             >
               Become a Professional
             </Link>
+            <Link
+              href="/blogs"
+              className="text-blue-600 px-6 py-3 rounded-lg text-lg font-medium hover:bg-blue-50 transition text-center"
+            >
+              Read our blog
+            </Link>
           </div>
         </div>
 
