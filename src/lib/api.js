@@ -179,6 +179,7 @@ export async function getBlogs() {
 /** GET /api/blogs/:slug. Returns a single blog post object. */
 export async function getBlog(slugOrId) {
   const key = encodeURIComponent(slugOrId);
+  console.log("key", key);
   const res = await apiFetch(`/api/blogs/${key}`);
   return res.data ?? res;
 }

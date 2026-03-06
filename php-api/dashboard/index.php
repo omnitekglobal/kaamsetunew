@@ -11,6 +11,8 @@ if (canAccessUsers($user['role'])) $allowedPages[] = 'users';
 if (canAccessCategoriesServices($user['role'])) {
     $allowedPages[] = 'categories';
     $allowedPages[] = 'services';
+    $allowedPages[] = 'blogs';
+    $allowedPages[] = 'blog_edit';
 }
 if (canAccessBookings($user['role'])) {
     $allowedPages[] = 'bookings';

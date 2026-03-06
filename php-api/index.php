@@ -84,6 +84,9 @@ $routes = [
     'POST /api/professionals/register' => 'api/professionals/register.php',
     'POST /api/professionals/request' => 'api/professionals/request.php',
     'GET /api/professionals/view/{id}' => 'api/professionals/view.php',
+    // Blogs (public)
+    'GET /api/blogs' => 'api/blogs/index.php',
+    'GET /api/blogs/{id}' => 'api/blogs/read.php',
 ];
 
 $key = $method . ' ' . $path;
@@ -96,7 +99,10 @@ if (isset($routes[$key])) {
 foreach ($routes as $route => $file) {
     [$routeMethod, $routePath] = explode(' ', $route, 2);
     if ($routeMethod !== $method) continue;
-    $pattern = '#^' . preg_replace('#\{id\}#', '([^/]+)', preg_quote($routePath, '#')) . '$#';
+    // First escape the route path, then replace the escaped "{id}" token with a capture group.
+    $escaped = preg_quote($routePath, '#');
+    $escaped = str_replace('\{id\}', '([^/]+)', $escaped);
+    $pattern = '#^' . $escaped . '$#';
     if (preg_match($pattern, $path, $m)) {
         $_GET['_id'] = $m[1];
         require $baseDir . '/' . $file;

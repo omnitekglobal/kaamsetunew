@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import { getBlog } from "@/lib/api";
 
-export async function generateMetadata({ params }) {
+export async function generateMetadata(props) {
+  const { slug } = await props.params;
   try {
-    const blog = await getBlog(params.slug);
+    const blog = await getBlog(slug);
     return {
       title: blog?.title
         ? `${blog.title} | PinkySreya Blog`
@@ -18,10 +19,11 @@ export async function generateMetadata({ params }) {
   }
 }
 
-export default async function BlogDetailPage({ params }) {
+export default async function BlogDetailPage(props) {
+  const { slug } = await props.params;
   let blog;
   try {
-    blog = await getBlog(params.slug);
+    blog = await getBlog(slug);
   } catch {
     return notFound();
   }

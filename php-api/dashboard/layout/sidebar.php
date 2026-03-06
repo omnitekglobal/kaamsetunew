@@ -39,6 +39,7 @@
         <?php if (canAccessCategoriesServices($user['role'])): ?>
             <a href="<?= DASHBOARD_BASE ?>/index.php?page=categories" class="nav-item <?= ($page ?? '') === 'categories' ? 'active' : '' ?>">Categories</a>
             <a href="<?= DASHBOARD_BASE ?>/index.php?page=services" class="nav-item <?= ($page ?? '') === 'services' ? 'active' : '' ?>">Services</a>
+            <a href="<?= DASHBOARD_BASE ?>/index.php?page=blogs" class="nav-item <?= ($page ?? '') === 'blogs' ? 'active' : '' ?>">Blogs</a>
         <?php endif; ?>
         <?php if (canAccessBookings($user['role'])): ?>
             <a href="<?= DASHBOARD_BASE ?>/index.php?page=bookings" class="nav-item <?= ($page ?? '') === 'bookings' ? 'active' : '' ?>">Bookings</a>
