@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { getBlogs } from "@/lib/api";
 
 export const metadata = {
@@ -50,11 +49,11 @@ export default async function BlogsPage() {
             >
               {blog.cover_image_url && (
                 <div className="relative h-44 w-full">
-                  <Image
+                  <img
                     src={blog.cover_image_url}
                     alt={blog.title || "Blog cover"}
-                    fill
-                    className="object-cover"
+                    className="object-cover w-full h-full"
+                    loading="lazy"
                   />
                 </div>
               )}
