@@ -10,7 +10,7 @@ export default function Footer() {
           <div>
             <Link href="/" className="flex items-center">
               <Image
-                src="/PinkySreyaTransRed.png" // Path to your image in the /public folder
+                src="/PinkySreyaTransRed.svg" // Path to your image in the /public folder
                 alt="PinkySreya Logo"
                 width={150} // Adjust width as needed
                 height={40} // Adjust height as needed

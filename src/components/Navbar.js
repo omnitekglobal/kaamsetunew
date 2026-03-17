@@ -16,7 +16,7 @@ export default function Navbar() {
           {/* Logo */}
 <Link href="/" className="flex items-center">
   <Image 
-    src="/PinkySreyaTrans.png"          // Path to your image in the /public folder
+    src="/PinkySreyaTrans.svg"          // Path to your image in the /public folder
     alt="PinkySreya Logo" 
     width={150}              // Adjust width as needed
     height={40}              // Adjust height as needed
