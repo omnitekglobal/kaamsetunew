@@ -2,10 +2,13 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
-export const metadata = {
-  title: "PinkySreya - Service Platform",
-  description: "Find trusted workers near you",
-};
+  export const metadata = {
+    title: "PinkySreya - Service Platform",
+    description: "Find trusted workers near you",
+  icons: {
+    icon: "/my-favicon.ico",
+  },
+  };
 
 export default function RootLayout({ children }) {
   return (
