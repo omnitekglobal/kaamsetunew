@@ -12,7 +12,27 @@ $page = max(1, (int)($_GET['page'] ?? 1));
 $limit = min(50, max(1, (int)($_GET['limit'] ?? 20)));
 $offset = ($page - 1) * $limit;
 
-$sql = 'SELECT id, name, email, phone, role, is_active, created_at FROM users WHERE 1=1';
+$hasLastLoginDateCol = false;
+$hasLastLoginTimeCol = false;
+$hasPincodeCol = false;
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'last_login_date'");
+    $hasLastLoginDateCol = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'last_login_time'");
+    $hasLastLoginTimeCol = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'pincode'");
+    $hasPincodeCol = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+
+$sql = 'SELECT id, name, email, phone, role, is_active, created_at'
+    . ($hasPincodeCol ? ', pincode' : '')
+    . ($hasLastLoginDateCol ? ', last_login_date' : '')
+    . ($hasLastLoginTimeCol ? ', last_login_time' : '')
+    . ' FROM users WHERE 1=1';
 $params = [];
 $sql .= ' AND role = ?';
 $params[] = $scopeRole;

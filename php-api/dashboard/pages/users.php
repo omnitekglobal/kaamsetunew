@@ -18,6 +18,9 @@ $hasUserStateCol = false;
 $hasUserLandmarkCol = false;
 $hasUserAadhaarCol = false;
 $hasUserCreatedByCol = false;
+$hasUserLastLoginDateCol = false;
+$hasUserLastLoginTimeCol = false;
+$hasUserPincodeCol = false;
 try {
     $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'referral_code'");
     $hasUserReferralCode = $stmt && $stmt->rowCount() > 0;
@@ -45,6 +48,18 @@ try {
 try {
     $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'created_by'");
     $hasUserCreatedByCol = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'last_login_date'");
+    $hasUserLastLoginDateCol = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'last_login_time'");
+    $hasUserLastLoginTimeCol = $stmt && $stmt->rowCount() > 0;
+} catch (Throwable $e) {}
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'pincode'");
+    $hasUserPincodeCol = $stmt && $stmt->rowCount() > 0;
 } catch (Throwable $e) {}
 
 // List of team leaders for assigning staff (super_admin only)
@@ -133,6 +148,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
+    } elseif ($action === 'resend_verification') {
+        require_once __DIR__ . '/../../includes/whatsapp.php';
+        $targetId = (int) ($_POST['user_id'] ?? 0);
+        
+        $stmt = $pdo->prepare('SELECT id, phone, is_verified FROM users WHERE id = ?');
+        $stmt->execute([$targetId]);
+        $target = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$target) {
+            $error = 'User not found.';
+        } elseif ((int)$target['is_verified'] === 1) {
+            $error = 'This user is already verified.';
+        } elseif (empty($target['phone'])) {
+            $error = 'User does not have a phone number to send WhatsApp.';
+        } else {
+            // Generate a fresh token
+            $newToken   = bin2hex(random_bytes(32));
+            $expiresAt  = date('Y-m-d H:i:s', time() + 86400);
+
+            $pdo->prepare('UPDATE users SET verification_token = ?, verification_token_expires_at = ? WHERE id = ?')
+                ->execute([$newToken, $expiresAt, $targetId]);
+            $sent = sendWhatsAppVerification($target['phone'], $newToken);
+            if ($sent) {
+                $message = 'Verification link sent via WhatsApp to ' . htmlspecialchars($target['phone']) . '.';
+            } else {
+                $error = 'Failed to send WhatsApp message. Please check integration.';
+            }
+        }
     } else {
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
@@ -146,6 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $state = trim($_POST['state'] ?? '');
     $landmark = trim($_POST['landmark'] ?? '');
     $aadhaar = trim($_POST['aadhaar_no'] ?? '');
+    $pincode = trim($_POST['pincode'] ?? '');
 
     if ($action === 'create' && !in_array($role, $allowedToCreate, true)) $role = $allowedToCreate[0] ?? 'staff';
     if (!$name || !$phone) {
@@ -197,6 +241,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($hasUserAadhaarCol) {
                         $sql .= ', aadhaar_no = ?';
                         $params[] = $aadhaar !== '' ? $aadhaar : null;
+                    }
+                    if ($hasUserPincodeCol) {
+                        $sql .= ', pincode = ?';
+                        $params[] = $pincode !== '' ? $pincode : null;
                     }
                 if ($password !== '') {
                     $sql .= ', password = ?';
@@ -258,9 +306,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $columns[] = 'aadhaar_no';
                         $values[] = $aadhaar !== '' ? $aadhaar : null;
                     }
+                    if ($hasUserPincodeCol) {
+                        $columns[] = 'pincode';
+                        $values[] = $pincode !== '' ? $pincode : null;
+                    }
                     if ($hasUserCreatedByCol) {
                         $columns[] = 'created_by';
-                        $values[] = (int) $user['id'];
+                        $assignTeamLeaderId = (int) ($_POST['team_leader_id'] ?? 0);
+                        if ($role === 'staff' && $user['role'] === 'super_admin' && $assignTeamLeaderId > 0) {
+                            $values[] = $assignTeamLeaderId;
+                        } else {
+                            $values[] = (int) $user['id'];
+                        }
                     }
 
                     $placeholders = implode(',', array_fill(0, count($columns), '?'));
@@ -308,7 +365,8 @@ $stmt = $countParams ? $pdo->prepare($countSql) : $pdo->query($countSql);
 $stmt->execute($countParams);
 $totalUsers = (int) $stmt->fetchColumn();
 
-$sql = 'SELECT id, name, email, phone, role, is_active, created_at'
+$sql = 'SELECT id, name, email, phone, role, is_active, is_verified, created_at'
+    . ($hasUserPincodeCol ? ', pincode' : '')
     . ($hasUserReferralCode ? ', referral_code' : '')
     . ($hasUserLanguageCol ? ', language' : '')
     . ($hasUserVillageCol ? ', village' : '')
@@ -316,6 +374,8 @@ $sql = 'SELECT id, name, email, phone, role, is_active, created_at'
     . ($hasUserLandmarkCol ? ', landmark' : '')
     . ($hasUserAadhaarCol ? ', aadhaar_no' : '')
     . ($hasUserCreatedByCol ? ', created_by' : '')
+    . ($hasUserLastLoginDateCol ? ', last_login_date' : '')
+    . ($hasUserLastLoginTimeCol ? ', last_login_time' : '')
     . ' FROM users WHERE 1=1';
 $params = [];
 if ($filterRole !== null) {
@@ -372,6 +432,7 @@ if ($roleFilter !== '') $paginationQueryParams['role'] = $roleFilter;
                 <th>Name</th>
                 <th>Email</th>
                 <th>Phone</th>
+                <?php if ($hasUserPincodeCol): ?><th>Pincode</th><?php endif; ?>
                 <?php if ($hasUserReferralCode): ?><th>Referral Code</th><?php endif; ?>
                 <?php if ($hasUserLanguageCol): ?><th>Language</th><?php endif; ?>
                 <?php if ($hasUserVillageCol): ?><th>Village</th><?php endif; ?>
@@ -379,8 +440,11 @@ if ($roleFilter !== '') $paginationQueryParams['role'] = $roleFilter;
                 <?php if ($hasUserLandmarkCol): ?><th>Landmark</th><?php endif; ?>
                 <?php if ($hasUserAadhaarCol): ?><th>Aadhaar</th><?php endif; ?>
                 <?php if ($hasUserCreatedByCol && $filterRole === 'staff'): ?><th>Created by</th><?php endif; ?>
+                <?php if ($user['role'] === 'super_admin' && $hasUserLastLoginDateCol): ?><th>Last Login Date</th><?php endif; ?>
+                <?php if ($user['role'] === 'super_admin' && $hasUserLastLoginTimeCol): ?><th>Last Login Time</th><?php endif; ?>
                 <th>Role</th>
                 <th>Status</th>
+                <th>Verified</th>
                 <th>Created</th>
                 <?php if (canCreateDeleteUsers($user['role'])): ?><th>Actions</th><?php endif; ?>
             </tr>
@@ -392,6 +456,9 @@ if ($roleFilter !== '') $paginationQueryParams['role'] = $roleFilter;
                     <td><?= htmlspecialchars($u['name']) ?></td>
                     <td><?= htmlspecialchars($u['email']) ?></td>
                     <td><?= htmlspecialchars($u['phone'] ?? '-') ?></td>
+                    <?php if ($hasUserPincodeCol): ?>
+                        <td><?= htmlspecialchars($u['pincode'] ?? '-') ?></td>
+                    <?php endif; ?>
                     <?php if ($hasUserReferralCode): ?>
                         <td><?= htmlspecialchars($u['referral_code'] ?? '-') ?></td>
                     <?php endif; ?>
@@ -436,6 +503,12 @@ if ($roleFilter !== '') $paginationQueryParams['role'] = $roleFilter;
                             ?>
                         </td>
                     <?php endif; ?>
+                    <?php if ($user['role'] === 'super_admin' && $hasUserLastLoginDateCol): ?>
+                        <td><?= htmlspecialchars($u['last_login_date'] ?? '-') ?></td>
+                    <?php endif; ?>
+                    <?php if ($user['role'] === 'super_admin' && $hasUserLastLoginTimeCol): ?>
+                        <td><?= htmlspecialchars($u['last_login_time'] ?? '-') ?></td>
+                    <?php endif; ?>
                     <td>
                         <?php if (canCreateDeleteUsers($user['role']) && canManageUser($user['role'], $u, $user['id'])): ?>
                             <form method="post" style="display:inline;" class="change-role-form">
@@ -452,6 +525,13 @@ if ($roleFilter !== '') $paginationQueryParams['role'] = $roleFilter;
                         <?php endif; ?>
                     </td>
                     <td><?= $u['is_active'] ? 'Active' : 'Inactive' ?></td>
+                    <td>
+                        <?php if ((int)$u['is_verified'] === 1): ?>
+                            <span class="badge" style="background:#22c55e;color:#fff;">Yes</span>
+                        <?php else: ?>
+                            <span class="badge" style="background:#ef4444;color:#fff;">No</span>
+                        <?php endif; ?>
+                    </td>
                     <td><?= htmlspecialchars($u['created_at']) ?></td>
                     <?php if (canCreateDeleteUsers($user['role'])): ?>
                         <td>
@@ -477,6 +557,13 @@ if ($roleFilter !== '') $paginationQueryParams['role'] = $roleFilter;
                             <?php if ((int) $u['id'] !== $user['id']): ?>
                                 <a href="?page=users&delete=<?= (int) $u['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Delete this user?')">Delete</a>
                             <?php endif; ?>
+                            <?php if (!(int)$u['is_verified']): ?>
+                                <form method="post" style="display:inline-block; margin-left:4px;">
+                                    <input type="hidden" name="_action" value="resend_verification">
+                                    <input type="hidden" name="user_id" value="<?= (int) $u['id'] ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline" title="Resend WhatsApp Link">Send Link</button>
+                                </form>
+                            <?php endif; ?>
                         </td>
                     <?php endif; ?>
                 </tr>
@@ -496,6 +583,7 @@ $editId = isset($_GET['edit']) ? (int) $_GET['edit'] : 0;
 $editUser = null;
 if ($editId && canCreateDeleteUsers($user['role'])) {
     $selectSql = 'SELECT id, name, email, phone, role, is_active'
+        . ($hasUserPincodeCol ? ', pincode' : '')
         . ($hasUserLanguageCol ? ', language' : '')
         . ($hasUserVillageCol ? ', village' : '')
         . ($hasUserStateCol ? ', state' : '')
@@ -510,6 +598,7 @@ $viewId = isset($_GET['view']) ? (int) $_GET['view'] : 0;
 $viewUser = null;
 if ($viewId && canCreateDeleteUsers($user['role'])) {
     $selectSql = 'SELECT id, name, email, phone, role, is_active, created_at'
+        . ($hasUserPincodeCol ? ', pincode' : '')
         . ($hasUserLanguageCol ? ', language' : '')
         . ($hasUserVillageCol ? ', village' : '')
         . ($hasUserStateCol ? ', state' : '')
@@ -548,6 +637,12 @@ $modalOpen = !empty($editUser);
                 <label>Phone *</label>
                 <input type="text" name="phone" required value="<?= htmlspecialchars($editUser['phone'] ?? '') ?>">
             </div>
+            <?php if ($hasUserPincodeCol): ?>
+            <div class="form-group">
+                <label>Pincode</label>
+                <input type="text" name="pincode" value="<?= htmlspecialchars($editUser['pincode'] ?? '') ?>">
+            </div>
+            <?php endif; ?>
             <div class="form-group">
                 <label>Language</label>
                 <input type="text" name="language" value="<?= htmlspecialchars($editUser['language'] ?? '') ?>">
@@ -570,13 +665,24 @@ $modalOpen = !empty($editUser);
             </div>
             <div class="form-group">
                 <label>Role</label>
-                <select name="role">
+                <select name="role" id="userModalRoleSelect">
                     <?php $rolesForDropdown = $editUser ? $rolesForEdit : $allowedToCreate; ?>
                     <?php foreach ($rolesForDropdown as $r): ?>
                         <option value="<?= htmlspecialchars($r) ?>" <?= ($editUser['role'] ?? $r) === $r ? 'selected' : '' ?>><?= htmlspecialchars(roleLabel($r)) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
+            <?php if ($user['role'] === 'super_admin' && $hasUserCreatedByCol && !empty($teamLeadersForAssign)): ?>
+            <div class="form-group" id="userModalTeamLeaderGroup" style="display:none;">
+                <label>Assign Team Leader</label>
+                <select name="team_leader_id" id="userModalTeamLeaderSelect">
+                    <option value="">-- Select Team Leader --</option>
+                    <?php foreach ($teamLeadersForAssign as $tl): ?>
+                        <option value="<?= (int) $tl['id'] ?>"><?= htmlspecialchars($tl['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <?php endif; ?>
             <?php if ($editUser): ?>
             <div class="form-group">
                 <label><input type="checkbox" name="is_active" value="1" <?= ($editUser['is_active'] ?? 1) ? 'checked' : '' ?>> Active</label>
@@ -589,6 +695,20 @@ $modalOpen = !empty($editUser);
         </form>
     </div>
 </div>
+<?php if ($user['role'] === 'super_admin' && $hasUserCreatedByCol && !empty($teamLeadersForAssign)): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var roleSelect = document.getElementById('userModalRoleSelect');
+    var tlGroup = document.getElementById('userModalTeamLeaderGroup');
+    if (!roleSelect || !tlGroup) return;
+    function toggleTl() {
+        tlGroup.style.display = roleSelect.value === 'staff' ? '' : 'none';
+    }
+    toggleTl();
+    roleSelect.addEventListener('change', toggleTl);
+});
+</script>
+<?php endif; ?>
 <?php if ($viewUser): ?>
 <?php
 // Resolve creator, team leader, and super admin chain for staff detail view
@@ -630,6 +750,12 @@ if (!empty($viewUser['created_by'] ?? null)) {
             <label>Phone</label>
             <input type="text" value="<?= htmlspecialchars($viewUser['phone'] ?? '-') ?>" disabled>
         </div>
+        <?php if ($hasUserPincodeCol): ?>
+        <div class="form-group">
+            <label>Pincode</label>
+            <input type="text" value="<?= htmlspecialchars($viewUser['pincode'] ?? '-') ?>" disabled>
+        </div>
+        <?php endif; ?>
         <?php if ($hasUserLanguageCol): ?>
         <div class="form-group">
             <label>Language</label>

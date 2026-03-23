@@ -12,6 +12,11 @@ $currentId = (int) $payload->sub;
 $currentRole = $payload->role ?? 'end_user';
 
 $pdo = getDb();
+$hasPincodeCol = false;
+try {
+    $stmtCol = $pdo->query("SHOW COLUMNS FROM users LIKE 'pincode'");
+    $hasPincodeCol = $stmtCol && $stmtCol->rowCount() > 0;
+} catch (Throwable $e) {}
 $stmt = $pdo->prepare('SELECT id, name, email, phone, role, is_active FROM users WHERE id = ?');
 $stmt->execute([$id]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -37,6 +42,9 @@ $params = [];
 
 $allowedSelf = ['name', 'phone', 'password'];
 $allowedAdmin = ['name', 'email', 'phone', 'role', 'is_active', 'password'];
+if ($hasPincodeCol) {
+    $allowedAdmin[] = 'pincode';
+}
 
 foreach ($allowedAdmin as $field) {
     if (!array_key_exists($field, $input)) continue;
@@ -65,7 +73,9 @@ foreach ($allowedAdmin as $field) {
         $params[] = (int) (bool) $input['is_active'];
     } else {
         $updates[] = "`$field` = ?";
-        $params[] = $field === 'email' ? trim($input['email']) : trim((string) $input[$field]) ?: null;
+        $params[] = ($field === 'email')
+            ? trim($input['email'])
+            : (trim((string) $input[$field]) ?: null);
     }
 }
 
@@ -77,7 +87,11 @@ $params[] = $id;
 $sql = 'UPDATE users SET ' . implode(', ', $updates) . ' WHERE id = ?';
 $pdo->prepare($sql)->execute($params);
 
-$stmt = $pdo->prepare('SELECT id, name, email, phone, role, is_active, updated_at FROM users WHERE id = ?');
+$stmt = $pdo->prepare(
+    'SELECT id, name, email, phone, role, is_active, updated_at'
+    . ($hasPincodeCol ? ', pincode' : '')
+    . ' FROM users WHERE id = ?'
+);
 $stmt->execute([$id]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 $user['id'] = (int) $user['id'];

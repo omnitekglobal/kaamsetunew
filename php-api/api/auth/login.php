@@ -10,7 +10,7 @@ if (!$phone || !$password) {
 }
 
 $pdo = getDb();
-$stmt = $pdo->prepare('SELECT id, name, email, password, phone, role, is_active FROM users WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,\'\'), \' \', \'\'), \'-\', \'\'), \'+\', \'\'), CHAR(10), \'\') = ?');
+$stmt = $pdo->prepare('SELECT id, name, email, password, phone, role, is_active, is_verified FROM users WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,\'\'), \' \', \'\'), \'-\', \'\'), \'+\', \'\'), CHAR(10), \'\') = ?');
 $stmt->execute([$phone]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -22,8 +22,20 @@ if (!$user['is_active']) {
     jsonError('Account is deactivated', 403);
 }
 
+// Block unverified accounts (graceful fallback if column missing)
+if (array_key_exists('is_verified', $user) && !(int)$user['is_verified']) {
+    jsonError('Your account is not verified. Please click the verification link sent to your WhatsApp number and try again.', 403);
+}
+
 if (!password_verify($password, $user['password'])) {
     jsonError('Invalid mobile number or password', 401);
+}
+
+try {
+    $pdo->prepare('UPDATE users SET last_login_date = CURDATE(), last_login_time = CURTIME() WHERE id = ?')
+        ->execute([(int) $user['id']]);
+} catch (Throwable $e) {
+    // Keep login working even if DB migration is not applied yet.
 }
 
 $token = createToken((int) $user['id'], $user['phone'] ?? $user['email'] ?? (string) $user['id'], $user['role']);

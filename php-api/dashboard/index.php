@@ -26,6 +26,9 @@ if (in_array($user['role'], ['super_admin', 'team_leader'], true)) {
 if (in_array($user['role'], ['super_admin', 'team_leader', 'staff'], true)) {
     $allowedPages[] = 'professional_requests';
 }
+if (($user['role'] ?? '') === 'super_admin') {
+    $allowedPages[] = 'reports';
+}
 if (in_array($user['role'], ['super_admin', 'end_user', 'professional', 'staff'], true)) $allowedPages[] = 'profile';
 if (in_array($user['role'], ['super_admin', 'professional', 'staff', 'team_leader'], true)) $allowedPages[] = 'wallet';
 

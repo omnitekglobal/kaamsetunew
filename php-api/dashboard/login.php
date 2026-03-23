@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Mobile number and password are required.';
     } else {
         $pdo = getDb();
-        $stmt = $pdo->prepare('SELECT id, name, email, phone, role, is_active FROM users WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,\'\'), \' \', \'\'), \'-\', \'\'), \'+\', \'\'), CHAR(10), \'\') = ?');
+        $stmt = $pdo->prepare('SELECT id, name, email, phone, role, is_active, is_verified FROM users WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,\'\'), \' \', \'\'), \'-\', \'\'), \'+\', \'\'), CHAR(10), \'\') = ?');
         $stmt->execute([$phone]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$user) {
@@ -30,7 +30,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Invalid mobile number or password.';
             } elseif (!$user['is_active']) {
                 $error = 'Account is deactivated.';
+            } elseif (array_key_exists('is_verified', $user) && !(int)$user['is_verified']) {
+                $error = 'Your account is not verified. Please click the verification link sent to your WhatsApp number.';
             } else {
+                try {
+                    $pdo->prepare('UPDATE users SET last_login_date = CURDATE(), last_login_time = CURTIME() WHERE id = ?')
+                        ->execute([(int) $user['id']]);
+                } catch (Throwable $e) {
+                    // Keep dashboard login working even if DB migration is not applied yet.
+                }
                 $_SESSION['dashboard_user'] = [
                     'id' => (int) $user['id'],
                     'name' => $user['name'],

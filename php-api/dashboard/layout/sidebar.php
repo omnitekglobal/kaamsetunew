@@ -54,6 +54,9 @@
         <?php if (in_array($user['role'], ['super_admin', 'team_leader', 'staff'], true)): ?>
             <a href="<?= DASHBOARD_BASE ?>/index.php?page=professional_requests" class="nav-item <?= ($page ?? '') === 'professional_requests' ? 'active' : '' ?>">Professional Requests</a>
         <?php endif; ?>
+        <?php if (($user['role'] ?? '') === 'super_admin'): ?>
+            <a href="<?= DASHBOARD_BASE ?>/index.php?page=reports" class="nav-item <?= ($page ?? '') === 'reports' ? 'active' : '' ?>">Reports</a>
+        <?php endif; ?>
         <?php if (in_array($user['role'], ['super_admin', 'end_user', 'professional', 'staff'], true)): ?>
             <a href="<?= DASHBOARD_BASE ?>/index.php?page=profile" class="nav-item <?= ($page ?? '') === 'profile' ? 'active' : '' ?>">My Profile</a>
         <?php endif; ?>

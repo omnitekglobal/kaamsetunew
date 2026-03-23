@@ -204,6 +204,22 @@ export async function register(body) {
   return res.data ?? res;
 }
 
+/** GET /api/auth/verify?token=XXX. Verifies a user account via WhatsApp link token. */
+export async function verifyAccount(token) {
+  const res = await apiFetch(`/api/auth/verify?token=${encodeURIComponent(token)}`);
+  return res;
+}
+
+/** POST /api/auth/resend-verification. Body: { phone }. Re-sends WhatsApp verification link. */
+export async function resendVerification(phone) {
+  const res = await apiFetch("/api/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+  return res;
+}
+
+
 // --- Roles (public list for dropdowns) ---
 
 /** GET /api/roles. Returns array of { id, name, label }. */
