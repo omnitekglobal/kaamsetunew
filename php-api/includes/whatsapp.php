@@ -26,7 +26,7 @@ function sendWhatsAppVerification(string $phone, string $token, ?string $templat
     $user     = $_ENV['WHATSAPP_USER']     ?? getenv('WHATSAPP_USER')     ?? 'pinkysreya';
     $pass     = $_ENV['WHATSAPP_PASS']     ?? getenv('WHATSAPP_PASS')     ?? 'Show#442';
     $from     = $_ENV['WHATSAPP_FROM']     ?? getenv('WHATSAPP_FROM')     ?? '919167130160';
-    $template = $templateName ?? $_ENV['WHATSAPP_TEMPLATE'] ?? getenv('WHATSAPP_TEMPLATE') ?? 'login_otp';
+    $template = $templateName ?? $_ENV['WHATSAPP_TEMPLATE'] ?? getenv('WHATSAPP_TEMPLATE') ?? 'verify2';
 
     $payload = [
         'user' => $user,
@@ -40,7 +40,7 @@ function sendWhatsAppVerification(string $phone, string $token, ?string $templat
                 'filename'     => '',
                 'smsgid'       => 'verify_' . substr($token, 0, 12),
                 'placeholders' => [
-                    ['0' => $verifyUrl]
+                    (object)['0' => $verifyUrl]
                 ],
                 'buttons' => [
                     ['placeholder' => $verifyUrl]
@@ -60,9 +60,7 @@ function sendWhatsAppVerification(string $phone, string $token, ?string $templat
     ]);
 
     $response = curl_exec($ch);
-    var_dump($response);
-    echo json_encode($payload);
-    exit;
+    //var_dump($response);exit;
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curlErr  = curl_error($ch);
     curl_close($ch);

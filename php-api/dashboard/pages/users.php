@@ -323,6 +323,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $placeholders = implode(',', array_fill(0, count($columns), '?'));
                     $sql = 'INSERT INTO users (' . implode(',', $columns) . ') VALUES (' . $placeholders . ')';
                     $pdo->prepare($sql)->execute($values);
+                    try {
+                        include_once __DIR__ . '/../../includes/whatsapp.php';
+                        $verificationToken   = bin2hex(random_bytes(32));
+                        sendWhatsAppVerification($phone, $verificationToken);   
+                    } catch (\Throwable $th) {
+                        //throw $th;
+                    }
                     $message = 'User created.';
                 }
             }
